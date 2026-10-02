@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  mongodb:
+    image: mongo:7
+    container_name: aniverse-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
+  consumet-api:
+    image: riimuru/consumet-api:latest
+    container_name: aniverse-consumet
+    ports:
+      - "3001:3000"
+    environment:
+      - PORT=3000
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

@@ -1,0 +1,10 @@
+export const PORT = process.env.PORT || 5000;
+export const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/aniverse';
+export const CONSUMET_API_URL = process.env.CONSUMET_API_URL || 'http://localhost:3001';
+export const ANILIST_API_URL = process.env.ANILIST_API_URL || 'https://graphql.anilist.co';
+export const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-this';
+export const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+export const MAL_CLIENT_ID = process.env.MAL_CLIENT_ID;
+export const MAL_CLIENT_SECRET = process.env.MAL_CLIENT_SECRET;
+export const MAL_REDIRECT_URI = process.env.MAL_REDIRECT_URI || `http://localhost:${PORT}/api/mal/callback`;
+export const NODE_ENV = process.env.NODE_ENV || 'development';
