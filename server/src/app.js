@@ -13,7 +13,10 @@ import malRoutes from './routes/malRoutes.js';
 const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
 app.use(cors({
   origin: true, // Allow all origins for dev
   credentials: true
@@ -33,12 +36,25 @@ const streamLimiter = rateLimit({
   message: { success: false, message: 'Too many stream requests, please try again later.' }
 });
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // Routes
 app.use('/api/auth', generalLimiter, authRoutes);
 app.use('/api/anime', generalLimiter, animeRoutes);
 app.use('/api/stream', streamLimiter, streamRoutes);
 app.use('/api/user', generalLimiter, userRoutes);
 app.use('/api/mal', generalLimiter, malRoutes);
+
+// Serve static frontend in production/electron
+const clientDistPath = path.join(__dirname, '../../client/dist');
+app.use(express.static(clientDistPath));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(clientDistPath, 'index.html'));
+});
 
 // Global Error Handler
 app.use(errorHandler);

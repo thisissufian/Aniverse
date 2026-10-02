@@ -6,9 +6,37 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev",
-    "install-all": "npm install && cd server && npm install && cd ../client && npm install"
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
+    "build-react": "cd client && npm run build",
+    "dist": "npm run build-react && electron-builder"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "type": "module",
+  "main": "electron.js",
+  "build": {
+    "appId": "com.aniverse.app",
+    "productName": "Aniverse",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "files": [
+      "electron.js",
+      "server/**/*",
+      "client/dist/**/*",
+      ".env"
+    ],
+    "asarUnpack": [
+      "server/**/*",
+      ".env"
+    ]
   }
 }
