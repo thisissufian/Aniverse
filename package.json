@@ -36,6 +36,7 @@
     ],
     "asarUnpack": [
       "server/**/*",
+      "client/dist/**/*",
       ".env"
     ]
   }

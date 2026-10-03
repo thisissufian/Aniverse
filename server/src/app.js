@@ -50,11 +50,25 @@ app.use('/api/user', generalLimiter, userRoutes);
 app.use('/api/mal', generalLimiter, malRoutes);
 
 // Serve static frontend in production/electron
-const clientDistPath = path.join(__dirname, '../../client/dist');
-app.use(express.static(clientDistPath));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(clientDistPath, 'index.html'));
-});
+import fs from 'fs';
+
+// Try multiple possible locations for client/dist
+const possiblePaths = [
+  path.join(__dirname, '../../client/dist'),           // dev: server/src/ -> ../../client/dist
+  path.join(process.cwd(), '../client/dist'),          // electron: server/ -> ../client/dist
+  path.join(process.cwd(), 'client/dist'),             // if CWD is root
+];
+
+let clientDistPath = possiblePaths.find(p => fs.existsSync(path.join(p, 'index.html')));
+
+if (clientDistPath) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+} else {
+  console.warn('Could not find client/dist. Tried:', possiblePaths);
+}
 
 // Global Error Handler
 app.use(errorHandler);
