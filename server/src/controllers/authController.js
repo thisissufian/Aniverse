@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../config/env.js';
 
@@ -6,8 +7,17 @@ const generateToken = (userId) => {
   return jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 };
 
+const checkDbConnection = (res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ success: false, message: 'Database connection is currently unavailable. Please ensure MongoDB is running or your MONGODB_URI is valid.' });
+  }
+  return false;
+};
+
 export const register = async (req, res, next) => {
   try {
+    if (checkDbConnection(res)) return;
+
     const { username, email, password } = req.body;
 
     const existingUser = await User.findOne({ username });
@@ -35,6 +45,8 @@ export const register = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
   try {
+    if (checkDbConnection(res)) return;
+
     const { username, password } = req.body;
 
     const user = await User.findOne({ username }).select('+password');
