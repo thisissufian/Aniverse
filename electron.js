@@ -86,6 +86,21 @@ function createWindow() {
   mainWindow.on('closed', function () {
     mainWindow = null;
   });
+
+  // AD-BLOCKER: Block all popups/new windows requested by iframe ads
+  mainWindow.webContents.setWindowOpenHandler((details) => {
+    console.log('Blocked popup ad to:', details.url);
+    return { action: 'deny' };
+  });
+
+  // AD-BLOCKER: Prevent iframe ads from redirecting the main application window
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    // Only allow top-level navigation to localhost (our app) and MyAnimeList (for login)
+    if (!url.startsWith('http://localhost') && !url.includes('myanimelist.net/v1/oauth2/authorize')) {
+      event.preventDefault();
+      console.log('Blocked redirect ad to:', url);
+    }
+  });
 }
 
 app.whenReady().then(async () => {
