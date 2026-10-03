@@ -16,6 +16,7 @@ export default function Profile() {
     autoSkipIntro: user?.preferences?.autoSkipIntro ?? false,
     autoNextEpisode: user?.preferences?.autoNextEpisode ?? true,
     defaultQuality: user?.preferences?.defaultQuality ?? 'auto',
+    defaultAudio: user?.preferences?.defaultAudio ?? 'sub',
     malAutoSync: user?.preferences?.malAutoSync ?? true,
   });
 
@@ -159,6 +160,21 @@ export default function Profile() {
                 <option value="1080p">1080p</option>
                 <option value="720p">720p</option>
                 <option value="480p">480p</option>
+              </select>
+            </div>
+
+            <div>
+              <h3 className="text-white font-medium mb-2">Preferred Audio</h3>
+              <select
+                value={preferences.defaultAudio}
+                onChange={(e) => {
+                  setPreferences({ ...preferences, defaultAudio: e.target.value });
+                  localStorage.setItem('defaultAudio', e.target.value);
+                }}
+                className="w-full bg-[#13131a] border border-[#2D2D44] text-white rounded-lg p-3 focus:ring-2 focus:ring-[#8B5CF6] outline-none"
+              >
+                <option value="sub">Japanese (Sub)</option>
+                <option value="dub">English (Dub)</option>
               </select>
             </div>
 

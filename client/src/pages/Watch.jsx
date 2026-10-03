@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Play, SkipForward, Maximize, Settings, Heart, Star, LayoutGrid } from 'lucide-react';
 import api from '../services/api';
@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 export default function Watch() {
   const { animeId, episodeId } = useParams();
+  const navigate = useNavigate();
   const [episodes, setEpisodes] = useState([]);
   const [anime, setAnime] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,6 +19,10 @@ export default function Watch() {
   const [currentServerId, setCurrentServerId] = useState(null);
   const [activeTab, setActiveTab] = useState('sub');
   const [loadingServer, setLoadingServer] = useState(false);
+
+  const [autoPlay, setAutoPlay] = useState(() => localStorage.getItem('autoPlay') !== 'false');
+  const [autoNext, setAutoNext] = useState(() => localStorage.getItem('autoNext') !== 'false');
+  const [autoSkip, setAutoSkip] = useState(() => localStorage.getItem('autoSkip') === 'true');
 
   useEffect(() => {
     const fetchStreamData = async () => {
@@ -64,8 +69,10 @@ export default function Watch() {
           const hasSub = srvs.some(s => s.type === 'sub');
           const hasDub = srvs.some(s => s.type === 'dub');
           
+          const pref = localStorage.getItem('defaultAudio') || 'sub';
           let tab = 'sub';
-          if (hasSub) tab = 'sub';
+          if (pref === 'dub' && hasDub) tab = 'dub';
+          else if (hasSub) tab = 'sub';
           else if (hasDub) tab = 'dub';
           
           setActiveTab(tab);
@@ -115,6 +122,24 @@ export default function Watch() {
     }
   };
 
+  const handleToggle = (key, setter) => {
+    return (e) => {
+      const checked = e.target.checked;
+      setter(checked);
+      localStorage.setItem(key, checked);
+    };
+  };
+
+  const handleNextEpisode = () => {
+    if (!autoNext || !episodes.length) return;
+    const currentId = episodeId || (episodes[0] ? episodes[0].id : null);
+    const currentIndex = episodes.findIndex(ep => ep.id === currentId);
+    if (currentIndex !== -1 && currentIndex < episodes.length - 1) {
+      const nextEp = episodes[currentIndex + 1];
+      navigate(`/watch/${animeId}/${nextEp.id}`);
+    }
+  };
+
   if (loading) return <div className="pt-20 h-screen"><LoadingSpinner /></div>;
   if (!anime || Object.keys(anime).length === 0) {
     return (
@@ -155,6 +180,7 @@ export default function Watch() {
                 isEmbed={true}
                 title={`${title} - Episode ${currentEpIndex + 1}`}
                 skipData={skipData}
+                onEnded={handleNextEpisode}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-500">
@@ -167,15 +193,15 @@ export default function Watch() {
           <div className="bg-[#1a1a2e] px-4 py-3 flex items-center justify-center sm:justify-between text-xs sm:text-sm font-medium border-t border-white/5 flex-wrap gap-3">
             <div className="flex space-x-6">
               <label className="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors">
-                <input type="checkbox" className="accent-[#8B5CF6]" defaultChecked />
+                <input type="checkbox" className="accent-[#8B5CF6]" checked={autoPlay} onChange={handleToggle('autoPlay', setAutoPlay)} />
                 <span>Auto Play</span>
               </label>
               <label className="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors">
-                <input type="checkbox" className="accent-[#8B5CF6]" defaultChecked />
+                <input type="checkbox" className="accent-[#8B5CF6]" checked={autoNext} onChange={handleToggle('autoNext', setAutoNext)} />
                 <span>Auto Next</span>
               </label>
               <label className="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors">
-                <input type="checkbox" className="accent-[#8B5CF6]" />
+                <input type="checkbox" className="accent-[#8B5CF6]" checked={autoSkip} onChange={handleToggle('autoSkip', setAutoSkip)} />
                 <span>Auto Skip</span>
               </label>
             </div>

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import Artplayer from 'artplayer';
 import Hls from 'hls.js';
 
-export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, skipData }) {
+export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, skipData, onEnded }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -51,12 +51,16 @@ export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, s
       });
     }
 
+    art.on('video:ended', () => {
+      if (onEnded) onEnded();
+    });
+
     return () => {
       if (art && art.destroy) {
         art.destroy(false);
       }
     };
-  }, [url, poster, title, isEmbed]);
+  }, [url, poster, title, isEmbed, onEnded]);
 
   if (!url) return <div className="w-full h-full flex items-center justify-center bg-black text-gray-400 font-inter">Stream not available</div>;
 
@@ -78,6 +82,11 @@ export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, s
             }
           }), '*');
         }
+
+        // Handle video ended for auto-next (Vidstream/MegaPlay variations)
+        if (msg?.event === 'video_ended' || msg?.event === 'ended' || msg?.type === 'ended' || msg?.name === 'complete') {
+          if (onEnded) onEnded();
+        }
       } catch (err) {
         // Ignore parse errors from other extensions/messages
       }
@@ -85,7 +94,7 @@ export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, s
     
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [url, isEmbed, skipData]);
+  }, [url, isEmbed, skipData, onEnded]);
 
   if (isEmbed || url?.includes('megaplay.buzz') || url?.includes('stream') || url?.includes('iframe') || url?.includes('embtaku.pro') || url?.includes('gogoplay') || url?.includes('vidstreaming')) {
     return (

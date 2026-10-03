@@ -38,6 +38,7 @@ const userSchema = new mongoose.Schema({
     autoSkipIntro: { type: Boolean, default: false },
     autoNextEpisode: { type: Boolean, default: true },
     defaultQuality: { type: String, default: 'auto' },
+    defaultAudio: { type: String, default: 'sub' },
     malAutoSync: { type: Boolean, default: true }
   }
 }, { timestamps: true });
