@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Play } from 'lucide-react';
+import { Play, Plus } from 'lucide-react';
+import WatchlistModal from './WatchlistModal';
 
 export default function AnimeCard({ anime }) {
+  const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
   const title = anime.title?.english || anime.title?.romaji;
   const eps = anime.episodes || '?';
   const format = anime.format || 'TV';
@@ -39,8 +42,18 @@ export default function AnimeCard({ anime }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none z-10" />
         
         {/* Hover Overlay */}
-        <div className="absolute inset-0 z-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 backdrop-blur-[2px]">
-          <Play size={48} className="text-white drop-shadow-lg fill-white/80" />
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 backdrop-blur-[2px]">
+          <Play size={48} className="text-white drop-shadow-lg fill-white/80 mb-4" />
+          <button 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsWatchlistModalOpen(true);
+            }}
+            className="flex items-center gap-1 bg-[#252540]/90 hover:bg-[#8B5CF6] text-white text-xs font-semibold py-1.5 px-3 rounded-full transition-colors backdrop-blur-md"
+          >
+            <Plus size={14} /> Add to List
+          </button>
         </div>
       </div>
       
@@ -53,6 +66,14 @@ export default function AnimeCard({ anime }) {
           {anime.seasonYear ? `${anime.seasonYear} • ` : ''}{anime.status?.toLowerCase().replace('_', ' ') || ''}
         </span>
       </div>
+      
+      {isWatchlistModalOpen && (
+        <WatchlistModal 
+          isOpen={isWatchlistModalOpen} 
+          onClose={() => setIsWatchlistModalOpen(false)} 
+          anime={anime} 
+        />
+      )}
     </Link>
   );
 }

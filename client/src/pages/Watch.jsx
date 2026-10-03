@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Play, SkipForward, Maximize, Settings, Heart, Star, LayoutGrid } from 'lucide-react';
+import { Play, SkipForward, Maximize, Settings, Heart, Star, LayoutGrid, Plus } from 'lucide-react';
 import api from '../services/api';
 import VideoPlayer from '../components/player/VideoPlayer';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import WatchlistModal from '../components/ui/WatchlistModal';
 
 export default function Watch() {
   const { animeId, episodeId } = useParams();
@@ -12,6 +13,7 @@ export default function Watch() {
   const [episodes, setEpisodes] = useState([]);
   const [anime, setAnime] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
   
   const [embedUrl, setEmbedUrl] = useState(null);
   const [skipData, setSkipData] = useState(null);
@@ -379,10 +381,25 @@ export default function Watch() {
             <span className="text-xs text-gray-400 font-space-mono">
               {(anime?.averageScore / 10).toFixed(1)} / 10
             </span>
+            
+            <button 
+              onClick={() => setIsWatchlistModalOpen(true)}
+              className="mt-4 w-full flex items-center justify-center space-x-2 bg-[#252540] hover:bg-[#8B5CF6] text-white py-2.5 rounded-lg font-semibold transition-colors border border-[#2D2D44]"
+            >
+              <Plus size={16} />
+              <span>Add to Watchlist</span>
+            </button>
           </div>
         </div>
       </div>
       
+      {anime && (
+        <WatchlistModal 
+          isOpen={isWatchlistModalOpen} 
+          onClose={() => setIsWatchlistModalOpen(false)} 
+          anime={anime} 
+        />
+      )}
     </motion.div>
   );
 }

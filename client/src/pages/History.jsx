@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Play, Clock } from 'lucide-react';
+import { Play, Clock, Plus } from 'lucide-react';
+import WatchlistModal from '../components/ui/WatchlistModal';
 
 export default function History() {
   const [history, setHistory] = useState([]);
+  const [selectedAnimeForWatchlist, setSelectedAnimeForWatchlist] = useState(null);
 
   useEffect(() => {
     try {
@@ -59,7 +61,20 @@ export default function History() {
                   </p>
                 </div>
                 
-                <div className="mt-4 sm:mt-0 self-start sm:self-end">
+                <div className="mt-4 sm:mt-0 self-start sm:self-end flex space-x-2">
+                  <button
+                    onClick={() => {
+                      setSelectedAnimeForWatchlist({
+                        id: item.animeId,
+                        title: { english: item.title, romaji: item.title },
+                        coverImage: { extraLarge: item.image, large: item.image }
+                      });
+                    }}
+                    className="flex items-center space-x-2 bg-[#1a1a2e] hover:bg-[#252540] text-gray-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-[#2D2D44]"
+                    title="Add to Watchlist"
+                  >
+                    <Plus size={16} />
+                  </button>
                   <Link
                     to={`/watch/${item.animeId}/${item.episodeId}`}
                     className="flex items-center space-x-2 bg-[#252540] hover:bg-[#8B5CF6] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -80,6 +95,14 @@ export default function History() {
             Go to Home
           </Link>
         </div>
+      )}
+
+      {selectedAnimeForWatchlist && (
+        <WatchlistModal
+          isOpen={!!selectedAnimeForWatchlist}
+          onClose={() => setSelectedAnimeForWatchlist(null)}
+          anime={selectedAnimeForWatchlist}
+        />
       )}
     </motion.div>
   );
