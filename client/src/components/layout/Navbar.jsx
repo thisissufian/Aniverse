@@ -1,11 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Search } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { Search, History, Settings } from 'lucide-react';
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
   const location = useLocation();
-
   const isActive = (path) => location.pathname === path;
 
   return (
@@ -25,31 +22,24 @@ export default function Navbar() {
             <Link to="/search" className={`text-sm font-medium transition-colors ${isActive('/search') ? 'text-white' : 'text-gray-400 hover:text-white'}`}>
               Browse
             </Link>
+            <Link to="/history" className={`text-sm font-medium transition-colors ${isActive('/history') ? 'text-white' : 'text-gray-400 hover:text-white'}`}>
+              History
+            </Link>
           </div>
         </div>
 
-        {/* Right Side: Search & Auth */}
+        {/* Right Side: Search & Settings */}
         <div className="flex items-center gap-6">
           <Link to="/search" className="text-gray-400 hover:text-white transition-colors">
             <Search size={20} />
           </Link>
 
-          {user ? (
-            <div className="flex items-center gap-4">
-              <Link to="/watchlist" className={`text-sm font-medium transition-colors ${isActive('/watchlist') ? 'text-white' : 'text-gray-400 hover:text-white'}`}>Watchlist</Link>
-              <Link to="/profile" className={`text-sm font-medium transition-colors ${isActive('/profile') ? 'text-white' : 'text-gray-400 hover:text-white'}`}>Profile</Link>
-              <button onClick={logout} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">Logout</button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4">
-              <Link to="/login" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
-                Login
-              </Link>
-              <Link to="/register" className="text-sm font-medium px-4 py-1.5 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded transition-colors shadow-lg shadow-[#8B5CF6]/20">
-                Register
-              </Link>
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            <Link to="/profile" className={`flex items-center gap-2 text-sm font-medium transition-colors ${isActive('/profile') ? 'text-[#8B5CF6]' : 'text-gray-400 hover:text-white'}`}>
+              <Settings size={18} />
+              <span className="hidden sm:inline">Settings</span>
+            </Link>
+          </div>
         </div>
         
       </div>

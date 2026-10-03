@@ -81,6 +81,32 @@ export default function Watch() {
             const firstOfTab = srvs.find(s => s.type === tab) || srvs[0];
             setCurrentServerId(firstOfTab.linkId);
           }
+
+          // Save to Local History
+          try {
+            const history = JSON.parse(localStorage.getItem('aniverse_history') || '[]');
+            const historyItem = {
+              animeId: animeId,
+              episodeId: targetEpisodeId,
+              title: animeData?.title?.english || animeData?.title?.romaji,
+              image: animeData?.bannerImage || animeData?.coverImage?.large,
+              episodeNumber: targetEpisode.number,
+              episodeTitle: targetEpisode.title || '',
+              timestamp: Date.now()
+            };
+            
+            // Remove previous entry for this anime if exists
+            const filteredHistory = history.filter(h => h.animeId !== animeId);
+            filteredHistory.unshift(historyItem);
+            
+            // Keep last 100 watched
+            if (filteredHistory.length > 100) filteredHistory.pop();
+            
+            localStorage.setItem('aniverse_history', JSON.stringify(filteredHistory));
+          } catch (e) {
+            console.error('Failed to save history', e);
+          }
+
         } else {
           setEmbedUrl(null);
           setSkipData(null);
