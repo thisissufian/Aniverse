@@ -80,6 +80,24 @@ export default function Watch() {
           if (srvs.length > 0) {
             const firstOfTab = srvs.find(s => s.type === tab) || srvs[0];
             setCurrentServerId(firstOfTab.linkId);
+            
+            if (firstOfTab.type !== srvs[0].type) {
+              setLoadingServer(true);
+              try {
+                const res = await api.Stream.getEmbedUrl(firstOfTab.linkId);
+                const data = res.data?.data || res.data;
+                const newUrl = data?.url || data?.embedUrl;
+                if (newUrl) setEmbedUrl(newUrl);
+              } catch (e) {
+                console.error("Failed to fetch initial preferred audio server", e);
+                setEmbedUrl(streamData.embedUrl);
+              }
+              setLoadingServer(false);
+            } else {
+              setEmbedUrl(streamData.embedUrl);
+            }
+          } else {
+            setEmbedUrl(streamData.embedUrl);
           }
 
           // Save to Local History

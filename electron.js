@@ -3,9 +3,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import http from 'http';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Support Portable Mode: if a folder named "aniverse-data" exists next to the .exe, use it!
+const exeDir = path.dirname(process.execPath);
+const portableDataDir = path.join(exeDir, 'aniverse-data');
+if (fs.existsSync(portableDataDir)) {
+  app.setPath('userData', portableDataDir);
+}
 
 let mainWindow;
 let serverProcess;

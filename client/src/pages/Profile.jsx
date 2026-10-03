@@ -31,6 +31,7 @@ export default function Profile() {
     try {
       const data = {
         history: JSON.parse(localStorage.getItem('aniverse_history') || '[]'),
+        watchlists: JSON.parse(localStorage.getItem('aniverse_watchlists') || '[]'),
         preferences: preferences
       };
       
@@ -62,6 +63,9 @@ export default function Profile() {
         if (data.history) {
           localStorage.setItem('aniverse_history', JSON.stringify(data.history));
         }
+        if (data.watchlists) {
+          localStorage.setItem('aniverse_watchlists', JSON.stringify(data.watchlists));
+        }
         if (data.preferences) {
           if (data.preferences.autoSkipIntro !== undefined) localStorage.setItem('autoSkip', data.preferences.autoSkipIntro);
           if (data.preferences.autoNextEpisode !== undefined) localStorage.setItem('autoNext', data.preferences.autoNextEpisode);
@@ -82,6 +86,7 @@ export default function Profile() {
   const clearData = () => {
     if (window.confirm('Are you sure you want to delete all local history and settings? This cannot be undone.')) {
       localStorage.removeItem('aniverse_history');
+      localStorage.removeItem('aniverse_watchlists');
       toast.success('Local data cleared!');
     }
   };

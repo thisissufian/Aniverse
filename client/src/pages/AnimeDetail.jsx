@@ -6,6 +6,7 @@ import api from '../services/api';
 import GenreChip from '../components/ui/GenreChip';
 import AnimeCarousel from '../components/ui/AnimeCarousel';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import WatchlistModal from '../components/ui/WatchlistModal';
 
 export default function AnimeDetail() {
   const { id } = useParams();
@@ -14,6 +15,7 @@ export default function AnimeDetail() {
   const [loading, setLoading] = useState(true);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState('sub');
+  const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -77,7 +79,10 @@ export default function AnimeDetail() {
                   <span>Watch Episode 1</span>
                 </Link>
               )}
-              <button className="w-full flex items-center justify-center space-x-2 bg-[#252540] hover:bg-[#2D2D44] text-white py-3 rounded-lg font-semibold transition-colors border border-[#2D2D44]">
+              <button 
+                onClick={() => setIsWatchlistModalOpen(true)}
+                className="w-full flex items-center justify-center space-x-2 bg-[#252540] hover:bg-[#2D2D44] text-white py-3 rounded-lg font-semibold transition-colors border border-[#2D2D44]"
+              >
                 <Plus size={18} />
                 <span>Add to Watchlist</span>
               </button>
@@ -218,6 +223,14 @@ export default function AnimeDetail() {
           </div>
         )}
       </div>
+
+      {anime && (
+        <WatchlistModal 
+          isOpen={isWatchlistModalOpen} 
+          onClose={() => setIsWatchlistModalOpen(false)} 
+          anime={anime} 
+        />
+      )}
     </motion.div>
   );
 }

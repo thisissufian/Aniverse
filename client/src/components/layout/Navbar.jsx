@@ -22,6 +22,9 @@ export default function Navbar() {
             <Link to="/search" className={`text-sm font-medium transition-colors ${isActive('/search') ? 'text-white' : 'text-gray-400 hover:text-white'}`}>
               Browse
             </Link>
+            <Link to="/watchlist" className={`text-sm font-medium transition-colors ${isActive('/watchlist') ? 'text-white' : 'text-gray-400 hover:text-white'}`}>
+              Watchlists
+            </Link>
             <Link to="/history" className={`text-sm font-medium transition-colors ${isActive('/history') ? 'text-white' : 'text-gray-400 hover:text-white'}`}>
               History
             </Link>
