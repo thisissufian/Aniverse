@@ -38,6 +38,7 @@ export default function Home() {
   });
 
   const [gridFilter, setGridFilter] = useState('ALL');
+  const [topFilter, setTopFilter] = useState('Today');
 
   const getSortFromFilter = (filter) => {
     switch(filter) {
@@ -67,12 +68,19 @@ export default function Home() {
 
   // Top Anime (Sidebar)
   const { data: topAnimeRes } = useQuery({
-    queryKey: ['top_anime_sidebar'],
-    queryFn: () => api.Anime.searchAnime({ 
-      sort: 'SCORE_DESC', 
-      page: 1,
-      perPage: 10
-    }).then(res => res.data?.data?.media || [])
+    queryKey: ['top_anime_sidebar', topFilter],
+    queryFn: () => {
+      let sortParams = { sort: 'SCORE_DESC' };
+      if (topFilter === 'Today') sortParams = { sort: 'TRENDING_DESC', status: 'RELEASING' };
+      if (topFilter === 'Week') sortParams = { sort: 'POPULARITY_DESC', status: 'RELEASING' };
+      if (topFilter === 'Month') sortParams = { sort: 'POPULARITY_DESC' };
+      
+      return api.Anime.searchAnime({ 
+        ...sortParams,
+        page: 1,
+        perPage: 10
+      }).then(res => res.data?.data?.media || []);
+    }
   });
 
   const topAiringAnime = topAiringRes || [];
@@ -149,7 +157,7 @@ export default function Home() {
         <div className="flex-1 w-full min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 border-b border-white/10 pb-3 gap-4">
             <h3 className="text-2xl font-bold text-white flex items-center gap-2 cursor-pointer hover:text-[#8B5CF6] transition-colors" onClick={() => navigate('/search')}>
-              Recently Updated <ChevronRight className="text-[#8B5CF6]" />
+              Latest Episodes <ChevronRight className="text-[#8B5CF6]" />
             </h3>
             {/* Toggles */}
             <div className="flex gap-2 text-xs font-semibold overflow-x-auto pb-1 sm:pb-0">
@@ -181,10 +189,15 @@ export default function Home() {
 
         {/* Right Column: Sidebar */}
         <div className="w-full lg:w-[320px] xl:w-[350px] shrink-0 mt-8 lg:mt-0">
-           <div className="mb-6 border-b border-white/10 pb-3">
+           <div className="mb-6 border-b border-white/10 pb-3 flex items-center justify-between">
               <h3 className="text-xl font-bold text-white flex items-center gap-2 cursor-pointer hover:text-[#8B5CF6] transition-colors" onClick={() => navigate('/search')}>
                  Top Anime <ChevronRight className="text-[#8B5CF6] w-5 h-5" />
               </h3>
+              <div className="flex gap-1 bg-[#1a1a2e] rounded-md p-1">
+                 <button onClick={() => setTopFilter('Today')} className={`px-2 py-1 text-[11px] font-semibold rounded transition-colors ${topFilter === 'Today' ? 'bg-[#8B5CF6] text-white' : 'text-gray-400 hover:text-white'}`}>Today</button>
+                 <button onClick={() => setTopFilter('Week')} className={`px-2 py-1 text-[11px] font-semibold rounded transition-colors ${topFilter === 'Week' ? 'bg-[#8B5CF6] text-white' : 'text-gray-400 hover:text-white'}`}>Week</button>
+                 <button onClick={() => setTopFilter('Month')} className={`px-2 py-1 text-[11px] font-semibold rounded transition-colors ${topFilter === 'Month' ? 'bg-[#8B5CF6] text-white' : 'text-gray-400 hover:text-white'}`}>Month</button>
+              </div>
            </div>
            
            <div className="flex flex-col gap-4 bg-[#13131a] p-4 rounded-lg border border-white/5 shadow-lg">
