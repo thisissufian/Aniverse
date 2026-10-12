@@ -6,7 +6,7 @@ import WatchlistModal from './WatchlistModal';
 export default function AnimeCard({ anime }) {
   const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
   const title = anime.title?.english || anime.title?.romaji;
-  const eps = anime.episodes || '?';
+  const eps = anime.latestEpisode || anime.episodes || '?';
   const format = anime.format || 'TV';
 
   return (

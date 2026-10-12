@@ -40,28 +40,19 @@ export default function Home() {
   const [gridFilter, setGridFilter] = useState('ALL');
   const [topFilter, setTopFilter] = useState('Today');
 
-  const getSortFromFilter = (filter) => {
-    switch(filter) {
-      case 'ALL': return 'UPDATED_AT_DESC';
-      case 'TRENDING': return 'TRENDING_DESC';
-      case 'SUB': return 'POPULARITY_DESC';
-      case 'DUB': return 'SCORE_DESC';
-      default: return 'UPDATED_AT_DESC';
-    }
-  };
-
-  // Trending (Recently Updated / Main Grid)
+  // Latest Episodes (Main Grid)
   const {
     data: trendingPages,
     fetchNextPage: fetchNextTrending,
     hasNextPage: hasNextTrending,
   } = useInfiniteQuery({
-    queryKey: ['trending_anime', gridFilter],
+    queryKey: ['recent_episodes', gridFilter],
     queryFn: ({ pageParam = 1 }) => 
-      api.Anime.searchAnime({ sort: getSortFromFilter(gridFilter), page: pageParam }).then(res => res.data?.data?.media || []),
+      api.Anime.getRecentEpisodes({ page: pageParam, perPage: 20, filter: gridFilter })
+        .then(res => res.data?.data?.media || []),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
-      if (lastPage.length === 0) return undefined;
+      if (!lastPage || lastPage.length === 0) return undefined;
       return allPages.length + 1;
     },
   });
@@ -164,6 +155,7 @@ export default function Home() {
                <button onClick={() => setGridFilter('ALL')} className={`px-3 py-1.5 rounded-md whitespace-nowrap transition-colors ${gridFilter === 'ALL' ? 'bg-[#8B5CF6] text-white' : 'bg-[#1a1a2e] text-gray-400 hover:text-white'}`}>All</button>
                <button onClick={() => setGridFilter('SUB')} className={`px-3 py-1.5 rounded-md whitespace-nowrap transition-colors ${gridFilter === 'SUB' ? 'bg-[#8B5CF6] text-white' : 'bg-[#1a1a2e] text-gray-400 hover:text-white'}`}>Sub</button>
                <button onClick={() => setGridFilter('DUB')} className={`px-3 py-1.5 rounded-md whitespace-nowrap transition-colors ${gridFilter === 'DUB' ? 'bg-[#8B5CF6] text-white' : 'bg-[#1a1a2e] text-gray-400 hover:text-white'}`}>Dub</button>
+               <button onClick={() => setGridFilter('CHINESE')} className={`px-3 py-1.5 rounded-md whitespace-nowrap transition-colors ${gridFilter === 'CHINESE' ? 'bg-[#8B5CF6] text-white' : 'bg-[#1a1a2e] text-gray-400 hover:text-white'}`}>Chinese</button>
                <button onClick={() => setGridFilter('TRENDING')} className={`px-3 py-1.5 rounded-md whitespace-nowrap transition-colors ${gridFilter === 'TRENDING' ? 'bg-[#8B5CF6] text-white' : 'bg-[#1a1a2e] text-gray-400 hover:text-white'}`}>Trending</button>
             </div>
           </div>

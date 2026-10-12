@@ -61,3 +61,13 @@ export const getEpisodes = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getRecentEpisodes = async (req, res, next) => {
+  try {
+    const { page = 1, perPage = 20, filter = 'ALL' } = req.query;
+    const data = await anilistService.getRecentEpisodes(page, perPage, filter);
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -29,6 +29,7 @@ fragment MediaFields on Media {
   averageScore
   popularity
   genres
+  countryOfOrigin
   studios(isMain: true) {
     nodes {
       name
@@ -229,4 +230,100 @@ export const getHomePageData = async () => {
   } catch (error) {
     throw new Error('Failed to fetch home page data');
   }
+};
+
+export const getRecentEpisodes = async (page = 1, perPage = 20, filter = 'ALL') => {
+  const normFilter = filter.toUpperCase();
+  
+  if (normFilter === 'TRENDING') {
+    const query = `
+      ${MEDIA_FRAGMENT}
+      query ($page: Int, $perPage: Int) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo {
+            hasNextPage
+            currentPage
+          }
+          media(sort: TRENDING_DESC, status: RELEASING, type: ANIME, isAdult: false) {
+            ...MediaFields
+          }
+        }
+      }
+    `;
+    const data = await fetchAnilist(query, { page: parseInt(page), perPage: parseInt(perPage) });
+    return {
+      pageInfo: data.Page.pageInfo,
+      media: data.Page.media
+    };
+  }
+
+  if (normFilter === 'DUB') {
+    const query = `
+      ${MEDIA_FRAGMENT}
+      query ($page: Int, $perPage: Int) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo {
+            hasNextPage
+            currentPage
+          }
+          media(sort: POPULARITY_DESC, status: RELEASING, type: ANIME, isAdult: false) {
+            ...MediaFields
+          }
+        }
+      }
+    `;
+    const data = await fetchAnilist(query, { page: parseInt(page), perPage: parseInt(perPage) });
+    return {
+      pageInfo: data.Page.pageInfo,
+      media: data.Page.media
+    };
+  }
+
+  // ALL, SUB, CHINESE
+  const query = `
+    ${MEDIA_FRAGMENT}
+    query ($page: Int, $perPage: Int) {
+      Page(page: $page, perPage: $perPage) {
+        pageInfo {
+          hasNextPage
+          currentPage
+        }
+        airingSchedules(notYetAired: false, sort: TIME_DESC) {
+          id
+          airingAt
+          episode
+          media {
+            ...MediaFields
+          }
+        }
+      }
+    }
+  `;
+
+  const fetchPerPage = Math.max(parseInt(perPage) * 2, 40);
+  const data = await fetchAnilist(query, { page: parseInt(page), perPage: fetchPerPage });
+  const schedules = data.Page.airingSchedules || [];
+
+  const seen = new Set();
+  const mediaList = [];
+
+  for (const item of schedules) {
+    if (!item.media || seen.has(item.media.id)) continue;
+    seen.add(item.media.id);
+
+    if (normFilter === 'CHINESE' && item.media.countryOfOrigin !== 'CN') continue;
+    if (normFilter === 'SUB' && item.media.countryOfOrigin === 'CN') continue;
+
+    mediaList.push({
+      ...item.media,
+      latestEpisode: item.episode
+    });
+
+    if (mediaList.length >= parseInt(perPage)) break;
+  }
+
+  return {
+    pageInfo: data.Page.pageInfo,
+    media: mediaList
+  };
 };

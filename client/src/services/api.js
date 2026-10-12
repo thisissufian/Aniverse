@@ -26,6 +26,7 @@ const Anime = {
   getHomePage: () => api.get('/anime/home'),
   getTrending: () => api.get('/anime/trending'),
   getPopular: () => api.get('/anime/popular'),
+  getRecentEpisodes: (params) => api.get('/anime/recent-episodes', { params }),
   searchAnime: (params) => api.get('/anime/search', { params }),
   getAnimeDetail: (id) => api.get(`/anime/${id}`),
   getEpisodes: (id) => api.get(`/anime/${id}/episodes`),
