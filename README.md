@@ -1,202 +1,122 @@
 # 🌌 Aniverse
 
-A personal, ad-free anime streaming desktop application. Built with the MERN stack and packaged with Electron into a standalone Windows `.exe` installer.
+A sleek, ad-free desktop application for streaming anime with zero setup, local save support, multi-watchlists, and live airing schedule integration. Packaged as a standalone Windows installer and portable executable.
 
-> ⚠️ **Personal project** — for private use only. Not intended for public distribution.
+<div align="center">
+
+[![GitHub release](https://img.shields.io/github/v/release/thisissufian/Aniverse?style=for-the-badge&color=8B5CF6)](https://github.com/thisissufian/Aniverse/releases)
+[![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](#)
+[![Zero Ads](https://img.shields.io/badge/Zero-Ads-success?style=for-the-badge)](#)
+[![No Account Needed](https://img.shields.io/badge/Account-Not%20Required-blueviolet?style=for-the-badge)](#)
+
+</div>
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+<div align="center">
+
+![Electron](https://img.shields.io/badge/Electron-47848F?style=for-the-badge&logo=electron&logoColor=white)
+![React](https://img.shields.io/badge/React_18-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS_v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)
+![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)
+![GraphQL](https://img.shields.io/badge/AniList_GraphQL-E10098?style=for-the-badge&logo=graphql&logoColor=white)
+![Cheerio](https://img.shields.io/badge/Cheerio-E88C1F?style=for-the-badge&logo=cheerio&logoColor=white)
+![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
+
+</div>
+
+<br />
+
+| Layer | Technologies & Icons | Purpose |
+| :--- | :--- | :--- |
+| **Desktop Wrapper** | ![Electron](https://img.shields.io/badge/Electron-47848F?style=flat-square&logo=electron&logoColor=white) ![NSIS](https://img.shields.io/badge/NSIS-005571?style=flat-square) | Standalone Windows application with custom install path and zero-dependency portable `.exe` mode |
+| **Frontend UI** | ![React](https://img.shields.io/badge/React_18-20232A?style=flat-square&logo=react&logoColor=61DAFB) ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white) | High performance, responsive single-page client built with modern JSX and Vite bundling |
+| **Styling & Effects** | ![Tailwind](https://img.shields.io/badge/Tailwind_CSS_v4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white) ![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=flat-square&logo=framer&logoColor=white) | AniWave-inspired dark UI (`#0a0a0f`, `#13131a`, `#8B5CF6`) with smooth animations and layout transitions |
+| **Embedded Backend** | ![Node.js](https://img.shields.io/badge/Node.js-43853D?style=flat-square&logo=node.js&logoColor=white) ![Express](https://img.shields.io/badge/Express.js-000000?style=flat-square&logo=express&logoColor=white) | Self-contained Express server running locally on `localhost:5000` (eliminates remote server hosting costs) |
+| **Metadata Engine** | ![GraphQL](https://img.shields.io/badge/AniList_GraphQL-E10098?style=flat-square&logo=graphql&logoColor=white) | Fetches rich anime details, posters, scores, and real-time live **Airing Schedules** |
+| **Streaming Scraper** | ![Cheerio](https://img.shields.io/badge/Cheerio-E88C1F?style=flat-square) ![Axios](https://img.shields.io/badge/Axios-5A29E4?style=flat-square&logo=axios&logoColor=white) | Multi-server link resolution extracting high-speed video embeds and intro/outro skip timestamps |
+| **Local Storage & Sync** | ![LocalStorage](https://img.shields.io/badge/LocalStorage-FFA500?style=flat-square) ![JSON Export](https://img.shields.io/badge/JSON_Backup-2ea44f?style=flat-square) | Client-side data management for watch history, multiple custom watchlists, and JSON export/import |
 
 ---
 
 ## ✨ Features
 
-- 🎬 **Sub & Dub Streaming** — Watch anime in Japanese (Sub) or English (Dub) with one-click switching
-- 🖥️ **Desktop App** — Installs as a native Windows application via `Aniverse Setup.exe`
-- 🔍 **Search & Browse** — Search anime with genre, format, status, and sort filters powered by AniList
-- 📋 **Watchlist** — Track anime as Watching, Plan to Watch, Completed, On Hold, or Dropped
-- 📊 **Watch Progress** — Auto-saves your position so you can resume where you left off
-- 🔗 **MAL Sync** — Connect MyAnimeList to auto-sync your watch progress
-- ⏭️ **Skip Intro/Outro** — Native skip buttons appear automatically during intros and outros
-- 🖼️ **AniWave-Style UI** — Hero carousel, trending grid, top anime sidebar, and compact anime cards
-- 🎨 **Purple Dark Theme** — Sleek dark UI with purple accents and glassmorphism
-- 📱 **Responsive** — Works on desktop, tablet, and mobile
-- 🚫 **Zero Ads** — Clean, distraction-free viewing
+- 🚫 **Ad & Popup Blocker** — Custom Electron window handlers deny iframe ads, popups, and malicious external redirects.
+- 📡 **Real Latest Airing Episodes** — Directly connected to live broadcast schedules (`airingSchedules`) showing the freshest newly aired episodes with badge numbers (`SUB 162`, `SUB 3`, etc.).
+- 🎭 **Sub, Dub & Chinese (Donghua) Toggles** — Instant filtering for Japanese subbed releases, English dubs, and Chinese anime (*Renegade Immortal*, *Tales of Herding Gods*, *The Eternal Supreme*).
+- 🏆 **Top Anime Filters** — Filter popular series by **Today**, **Week**, and **Month**.
+- 📋 **Universal Watchlists** — Add anime to customizable, separate watchlists (e.g. for you and family members) right from the card hover, player sidebar, or history page.
+- 💾 **100% Local Save File Support** — No login or database connection needed. Export and import your complete watch history and watchlists anytime.
+- ⏩ **Auto Skip Intro & Outro** — Native skip buttons appear automatically during opening and ending songs.
+- 🏴‍☠️ **Custom App Icon** — Custom One Piece pirate-themed branding integrated directly into the `.exe` and taskbar.
 
 ---
 
-## 🛠️ Tech Stack
+## 📦 Download
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18, Vite, Tailwind CSS v4, Framer Motion, Radix UI |
-| Backend | Express.js, Node.js |
-| Database | MongoDB Atlas (Mongoose) |
-| Video | MegaPlay embeds via iframe with postMessage bridge |
-| Scraping | Cheerio + Axios (Anikoto pipeline) |
-| Metadata | AniList GraphQL API |
-| Sync | MyAnimeList API v2 (OAuth) |
-| Auth | JWT + bcrypt |
-| Desktop | Electron + electron-builder (NSIS installer) |
+Grab the latest release from the [GitHub Releases](https://github.com/thisissufian/Aniverse/releases):
 
----
+1. **`Aniverse Setup 1.0.0.exe`** (Standard installer — prompts you to pick your install directory)
+2. **`Aniverse 1.0.0.exe`** (Portable version — keep all data off the `C:` drive by placing an `aniverse-data` folder next to it)
 
-## 🚀 Getting Started
-
-### Prerequisites
-
-- **Node.js 18+**
-- **MongoDB Atlas** account (or local MongoDB)
-- *(Optional)* MAL API Client ID from [myanimelist.net/apiconfig](https://myanimelist.net/apiconfig)
-
-### 1. Clone & Install
-
-```bash
-git clone https://github.com/thisissufian/Aniverse.git
-cd Aniverse
-npm run install-all
-```
-
-### 2. Configure Environment
-
-```bash
-cp .env.example server/.env
-```
-
-Edit `server/.env` with your MongoDB connection string and (optionally) MAL API keys. The app works without MAL keys.
-
-### 3. Run in Development Mode
-
-```bash
-npm run dev
-```
-
-Or simply double-click **`Run-Dev.bat`** — it starts the servers and opens your browser automatically.
-
-- **Backend** → http://localhost:5000
-- **Frontend** → http://localhost:5173
-
-### 4. Build Desktop App (.exe)
-
-```bash
-npm run dist
-```
-
-This compiles the React frontend, bundles it with the Express backend, and generates a Windows installer at:
-
-```
-release/Aniverse Setup 1.0.0.exe
-```
-
-Run the installer and launch Aniverse from your Start Menu like any other desktop app.
-
----
-
-## 📁 Project Structure
-
-```
-Aniverse/
-├── client/                    # React Frontend (Vite)
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── layout/        # Navbar, Footer
-│   │   │   ├── player/        # VideoPlayer (iframe + Artplayer)
-│   │   │   └── ui/            # AnimeCard, AnimeGrid, HeroBanner, etc.
-│   │   ├── context/           # AuthContext
-│   │   ├── pages/             # Home, Watch, Search, AnimeDetail, etc.
-│   │   └── services/          # API client (axios)
-│   └── vite.config.js
-├── server/                    # Express.js Backend
-│   ├── src/
-│   │   ├── config/            # DB connection, env vars
-│   │   ├── controllers/       # Route handlers
-│   │   ├── middleware/        # Auth, CORS proxy, cache, error handler
-│   │   ├── models/            # User, WatchProgress, Watchlist
-│   │   ├── routes/            # API route definitions
-│   │   └── services/
-│   │       ├── anilistService.js    # AniList GraphQL queries
-│   │       ├── consumetService.js   # Anikoto streaming pipeline
-│   │       └── malService.js        # MyAnimeList OAuth + sync
-│   └── server.js
-├── electron.js                # Electron main process
-├── Run-Dev.bat                # One-click dev launcher
-├── package.json               # Root config + electron-builder
-└── .env.example
-```
+> 💡 **Windows Defender SmartScreen**: Because this is an open-source project without a paid Microsoft certificate, Windows may show a blue warning. Click **"More info"** → **"Run anyway"**.
 
 ---
 
 ## 🔌 Streaming Pipeline
 
-Aniverse uses a custom 5-step scraping pipeline to fetch real anime streams:
-
 ```
-AniList ID → Anikoto Search → Episode List → Server List → MegaPlay Embed URL
+AniList ID / Airing Schedule
+            │
+            ▼
+    Anikoto Title & Slug Search
+            │
+            ▼
+    Internal Episode ID Resolution
+            │
+            ▼
+    Server List (Sub / Dub / HD-1 / Vidstream)
+            │
+            ▼
+    MegaPlay Embed URL + Skip Intro/Outro Timestamps
 ```
 
-1. **Search** — Queries `anikototv.to/filter` with title + format type (TV/Movie/OVA)
-2. **Data ID** — Extracts the internal anime ID from the watch page
-3. **Episodes** — Fetches episode list with sub/dub availability flags
-4. **Servers** — Gets available servers (HD-1, Vidstream, etc.) for both Sub and Dub
-5. **Embed** — Returns the final `megaplay.buzz` embed URL + skip timestamps
+---
 
-The video player communicates with MegaPlay via `postMessage` to pass skip intro/outro timestamps, enabling native skip buttons inside the player.
+## 🛠️ Local Development
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- npm
+
+### Installation & Run
+
+```bash
+# Clone the repository
+git clone https://github.com/thisissufian/Aniverse.git
+cd Aniverse
+
+# Install dependencies for both root and client
+npm run install-all
+
+# Start both backend and frontend concurrently
+npm run dev
+```
+
+### Packaging Desktop Apps
+
+```bash
+# Compiles React and builds Windows installer + portable EXE
+npm run dist
+```
+
+Executables will be generated in `release/`.
 
 ---
 
-## 🔗 API Routes
-
-### Anime (Public)
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | `/api/anime/home` | Home page data (trending, popular, top airing) |
-| GET | `/api/anime/trending` | Trending anime |
-| GET | `/api/anime/popular` | Popular anime |
-| GET | `/api/anime/search` | Search with `?search=&genres=&format=&sort=&status=` |
-| GET | `/api/anime/:id` | Anime details |
-| GET | `/api/anime/:id/episodes` | Episode list with sub/dub flags and dataIds |
-
-### Streaming
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | `/api/stream/:dataIds/sources` | Embed URL + servers + skip data |
-| GET | `/api/stream/:dataIds/servers` | Available servers list |
-| GET | `/api/stream/embed/:linkId` | Specific server embed URL |
-
-### Auth
-| Method | Route | Description |
-|--------|-------|-------------|
-| POST | `/api/auth/register` | Create account |
-| POST | `/api/auth/login` | Login |
-| GET | `/api/auth/me` | Current user |
-
-### User (Protected)
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET/POST/PUT/DELETE | `/api/user/watchlist` | Watchlist CRUD |
-| GET | `/api/user/history` | Watch history |
-| POST | `/api/user/progress` | Save watch progress |
-
-### MyAnimeList
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | `/api/mal/auth` | Start OAuth flow |
-| GET | `/api/mal/callback` | OAuth callback |
-| GET | `/api/mal/status` | Connection status |
-| POST | `/api/mal/sync-all` | Bulk sync to MAL |
-
----
-
-## 🎨 Theme
-
-| Color | Hex | Usage |
-|-------|-----|-------|
-| Background | `#0a0a0f` | Main background |
-| Card | `#13131a` | Card backgrounds |
-| Surface | `#1a1a2e` | Elevated surfaces |
-| Purple Primary | `#8B5CF6` | Buttons, accents |
-| Purple Dark | `#7C3AED` | Hover states |
-| Purple Light | `#A78BFA` | Links, highlights |
-
----
-
-## 📝 License
-
-Personal use only. Built with open-source APIs for educational purposes.
+## 📄 License
+Personal & educational use only. Built with open-source tools and AniList public API.
