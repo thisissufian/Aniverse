@@ -52,18 +52,22 @@ A sleek, ad-free desktop application for streaming anime with zero setup, local 
 - 📋 **Universal Watchlists** — Add anime to customizable, separate watchlists (e.g. for you and family members) right from the card hover, player sidebar, or history page.
 - 💾 **100% Local Save File Support** — No login or database connection needed. Export and import your complete watch history and watchlists anytime.
 - ⏩ **Auto Skip Intro & Outro** — Native skip buttons appear automatically during opening and ending songs.
-- 🏴‍☠️ **Custom App Icon** — Custom One Piece pirate-themed branding integrated directly into the `.exe` and taskbar.
+- 📱 **Native YouTube-Smooth Android App** — Jetpack Compose + ExoPlayer mobile app with 120Hz smooth scrolling, double-tap seek, vertical swipe brightness/volume gestures, and native Picture-in-Picture (PiP).
+- 🏴‍☠️ **Custom App Icon** — Custom One Piece pirate-themed branding integrated directly into the `.exe`, APK launcher, and taskbar.
 
 ---
 
 ## 📦 Download
 
-Grab the latest release from the [GitHub Releases](https://github.com/thisissufian/Aniverse/releases):
+### 📱 Android APKs (Ultralight ~3.6 MB)
+- 🚀 **[`Aniverse-v1.0.0-arm64.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.0.1/Aniverse-v1.0.0-arm64.apk)** (Modern 64-bit Android smartphones & tablets)
+- 📦 **[`Aniverse-v1.0.0-armv7.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.0.1/Aniverse-v1.0.0-armv7.apk)** (32-bit Android devices & older emulators)
 
-1. **`Aniverse Setup 1.0.0.exe`** (Standard installer — prompts you to pick your install directory)
-2. **`Aniverse 1.0.0.exe`** (Portable version — keep all data off the `C:` drive by placing an `aniverse-data` folder next to it)
+### 💻 Windows Desktop
+- 💿 **[`Aniverse.Setup.1.0.0.exe`](https://github.com/thisissufian/Aniverse/releases/download/v1.0.1/Aniverse.Setup.1.0.0.exe)** (Standard installer — prompts you to pick your install directory)
+- 💼 **[`Aniverse.1.0.0.exe`](https://github.com/thisissufian/Aniverse/releases/download/v1.0.1/Aniverse.1.0.0.exe)** (Portable version — keep all data isolated by placing an `aniverse-data` folder next to it)
 
-> 💡 **Windows Defender SmartScreen**: Because this is an open-source project without a paid Microsoft certificate, Windows may show a blue warning. Click **"More info"** → **"Run anyway"**.
+> 💡 **Notice**: Because this is an open-source project without a paid signing certificate, Windows/Android may show a prompt. On Windows, click **"More info"** → **"Run anyway"**. On Android, allow "Install from unknown sources".
 
 ---
 
