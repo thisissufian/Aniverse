@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -41,7 +43,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.aniverse.app.data.local.AniverseDbHelper
@@ -53,7 +54,7 @@ import com.aniverse.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
     animeId: Int,
@@ -333,19 +334,25 @@ fun PlayerScreen(
             }
         }
 
-        // TOP CONTROLS BAR (Overlay)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(DarkCanvas.copy(alpha = 0.85f), Color.Transparent)
+        val activity = context as? Activity
+        val isInPip = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            activity?.isInPictureInPictureMode == true
+        } else false
+
+        if (!isInPip) {
+            // TOP CONTROLS BAR (Overlay)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(DarkCanvas.copy(alpha = 0.85f), Color.Transparent)
+                        )
                     )
-                )
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             IconButton(
                 onClick = {
                     exoPlayer.stop()
@@ -389,7 +396,7 @@ fun PlayerScreen(
                     .background(DarkSurface.copy(alpha = 0.8f))
             ) {
                 Icon(
-                    imageVector = Icons.Filled.List,
+                    imageVector = Icons.AutoMirrored.Filled.List,
                     contentDescription = "Episode List",
                     tint = PrimaryViolet
                 )
@@ -410,7 +417,37 @@ fun PlayerScreen(
                     tint = AccentCyan
                 )
             }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            // Picture-in-Picture Button
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                IconButton(
+                    onClick = {
+                        try {
+                            val hostActivity = context as? Activity
+                            hostActivity?.enterPictureInPictureMode(
+                                android.app.PictureInPictureParams.Builder()
+                                    .setAspectRatio(android.util.Rational(16, 9))
+                                    .build()
+                            )
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    },
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DarkSurface.copy(alpha = 0.8f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PictureInPictureAlt,
+                        contentDescription = "Picture in Picture",
+                        tint = AccentAmber
+                    )
+                }
+            }
         }
+    }
 
         // SEEK FEEDBACK OVERLAY (±10s animation)
         seekFeedbackText?.let { text ->
@@ -442,7 +479,7 @@ fun PlayerScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.VolumeUp, contentDescription = null, tint = PrimaryViolet)
+                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = PrimaryViolet)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "${(vol * 100).toInt()}%",
@@ -479,7 +516,7 @@ fun PlayerScreen(
 
         // AUTO SKIP INTRO OVERLAY BUTTON
         AnimatedVisibility(
-            visible = showSkipIntro,
+            visible = showSkipIntro && !isInPip,
             enter = fadeIn() + slideInHorizontally { it / 2 },
             exit = fadeOut(),
             modifier = Modifier
