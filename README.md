@@ -6,6 +6,7 @@ A sleek, ad-free desktop application for streaming anime with zero setup, local 
 
 [![GitHub release](https://img.shields.io/github/v/release/thisissufian/Aniverse?style=for-the-badge&color=8B5CF6)](https://github.com/thisissufian/Aniverse/releases)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](#)
+[![Platform: Android](https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](#)
 [![Zero Ads](https://img.shields.io/badge/Zero-Ads-success?style=for-the-badge)](#)
 [![No Account Needed](https://img.shields.io/badge/Account-Not%20Required-blueviolet?style=for-the-badge)](#)
 
@@ -17,15 +18,13 @@ A sleek, ad-free desktop application for streaming anime with zero setup, local 
 
 <div align="center">
 
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
+![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-4285F4?style=for-the-badge&logo=android&logoColor=white)
+![ExoPlayer](https://img.shields.io/badge/Media3_ExoPlayer-E50914?style=for-the-badge)
 ![Electron](https://img.shields.io/badge/Electron-47848F?style=for-the-badge&logo=electron&logoColor=white)
 ![React](https://img.shields.io/badge/React_18-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS_v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)
-![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)
 ![GraphQL](https://img.shields.io/badge/AniList_GraphQL-E10098?style=for-the-badge&logo=graphql&logoColor=white)
-![Cheerio](https://img.shields.io/badge/Cheerio-E88C1F?style=for-the-badge&logo=cheerio&logoColor=white)
-![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
 
 </div>
 
@@ -33,13 +32,14 @@ A sleek, ad-free desktop application for streaming anime with zero setup, local 
 
 | Layer | Technologies & Icons | Purpose |
 | :--- | :--- | :--- |
+| **Android Native App** | ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=flat-square&logo=kotlin&logoColor=white) ![Compose](https://img.shields.io/badge/Compose-4285F4?style=flat-square&logo=android&logoColor=white) ![ExoPlayer](https://img.shields.io/badge/ExoPlayer-E50914?style=flat-square) ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white) | 60/120fps hardware-accelerated mobile streaming with YouTube gestures, Jsoup scraping, and local watch history |
 | **Desktop Wrapper** | ![Electron](https://img.shields.io/badge/Electron-47848F?style=flat-square&logo=electron&logoColor=white) ![NSIS](https://img.shields.io/badge/NSIS-005571?style=flat-square) | Standalone Windows application with custom install path and zero-dependency portable `.exe` mode |
 | **Frontend UI** | ![React](https://img.shields.io/badge/React_18-20232A?style=flat-square&logo=react&logoColor=61DAFB) ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white) | High performance, responsive single-page client built with modern JSX and Vite bundling |
 | **Styling & Effects** | ![Tailwind](https://img.shields.io/badge/Tailwind_CSS_v4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white) ![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=flat-square&logo=framer&logoColor=white) | AniWave-inspired dark UI (`#0a0a0f`, `#13131a`, `#8B5CF6`) with smooth animations and layout transitions |
 | **Embedded Backend** | ![Node.js](https://img.shields.io/badge/Node.js-43853D?style=flat-square&logo=node.js&logoColor=white) ![Express](https://img.shields.io/badge/Express.js-000000?style=flat-square&logo=express&logoColor=white) | Self-contained Express server running locally on `localhost:5000` (eliminates remote server hosting costs) |
 | **Metadata Engine** | ![GraphQL](https://img.shields.io/badge/AniList_GraphQL-E10098?style=flat-square&logo=graphql&logoColor=white) | Fetches rich anime details, posters, scores, and real-time live **Airing Schedules** |
-| **Streaming Scraper** | ![Cheerio](https://img.shields.io/badge/Cheerio-E88C1F?style=flat-square) ![Axios](https://img.shields.io/badge/Axios-5A29E4?style=flat-square&logo=axios&logoColor=white) | Multi-server link resolution extracting high-speed video embeds and intro/outro skip timestamps |
-| **Local Storage & Sync** | ![LocalStorage](https://img.shields.io/badge/LocalStorage-FFA500?style=flat-square) ![JSON Export](https://img.shields.io/badge/JSON_Backup-2ea44f?style=flat-square) | Client-side data management for watch history, multiple custom watchlists, and JSON export/import |
+| **Streaming Scraper** | ![Cheerio](https://img.shields.io/badge/Cheerio-E88C1F?style=flat-square) ![Jsoup](https://img.shields.io/badge/Jsoup-005A9C?style=flat-square) | Multi-server link resolution extracting high-speed video embeds and intro/outro skip timestamps |
+| **Local Storage & Sync** | ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white) ![LocalStorage](https://img.shields.io/badge/LocalStorage-FFA500?style=flat-square) | Client-side data management for watch history, multiple custom watchlists, and JSON export/import |
 
 ---
 
@@ -118,5 +118,37 @@ Executables will be generated in `release/`.
 
 ---
 
+## 📱 Native Android App (Jetpack Compose + ExoPlayer)
+
+The native Android app is located in `android/` and built with **Kotlin, Jetpack Compose, Material 3, and Media3 ExoPlayer** for hardware-accelerated 60/120fps playback.
+
+### ✨ Android Features
+- ⚡ **YouTube-Style Gestures** — Double-tap left/right to seek ±10s with ripple animations; vertical swipe on screen edges for brightness and volume HUD controls.
+- 🎬 **Dual Playback Engine** — Plays direct HLS/MP4 streams in native ExoPlayer, and iframe embeds (MegaPlay/Vidstream) in hardware-accelerated ad-blocked WebView.
+- 📋 **In-Player Episode & Server Drawer** — Bottom sheets to pick any episode or switch between Subbed/Dubbed audio and server mirrors without stopping playback.
+- ⏩ **Auto-Skip Intro & Outro** — Automatic OP/ED detection with floating skip chips.
+- 💾 **Offline SQLite Persistence** — Automatically tracks watch history with exact second timestamps and powers the "Continue Watching" shelf and Watchlist screen.
+- 🛡️ **Zero Server Required** — Embedded client-side Jsoup resolver scrapes Anikoto streams directly on mobile with zero requirement for the desktop PC backend.
+
+> 📖 **Full Architectural Documentation**: See [ANDROID_ARCHITECTURE.md](file:///f:/cool%20projects/Aniverse/ANDROID_ARCHITECTURE.md) for detailed diagrams, data models, and the upcoming Phase 3 & 4 roadmap.
+
+### 🔨 Build APK
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "SupportingSofts\build_aniverse_android.ps1"
+```
+
+The APK will be generated at:
+`android/app/build/outputs/apk/debug/app-debug.apk` (22.26 MB)
+
+### 📲 Launch on Emulator or Phone
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "SupportingSofts\run_aniverse_android.ps1"
+```
+
+---
+
 ## 📄 License
 Personal & educational use only. Built with open-source tools and AniList public API.
+

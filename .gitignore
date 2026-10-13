@@ -7,3 +7,25 @@ build/
 release/
 *.blockmap
 *.lnk
+
+# Android & Gradle
+android/**/build/
+android/.gradle/
+android/local.properties
+SupportingSofts/.gradle/
+SupportingSofts/.android/
+SupportingSofts/AndroidSDK/
+SupportingSofts/gradle-8.7/
+SupportingSofts/Unity Hub/
+SupportingSofts/*.zip
+*.apk
+*.zip
+
+# Legacy external scripts
+SupportingSofts/build_and_send.ps1
+SupportingSofts/_analyze.ps1
+SupportingSofts/setup_github.ps1
+SupportingSofts/launch_complete.ps1
+SupportingSofts/launch_emulator_fixed.ps1
+SupportingSofts/install_android_components.ps1
+SupportingSofts/fix_adb_path.ps1
