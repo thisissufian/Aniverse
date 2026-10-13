@@ -16,6 +16,7 @@ data class HomeUiState(
     val isLoading: Boolean = true,
     val heroAnime: Anime? = null,
     val continueWatching: List<WatchHistoryItem> = emptyList(),
+    val latestEpisodes: List<Anime> = emptyList(),
     val trendingAnime: List<Anime> = emptyList(),
     val popularAnime: List<Anime> = emptyList(),
     val donghuaAnime: List<Anime> = emptyList(),
@@ -41,6 +42,7 @@ class HomeViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             try {
                 val history = dbHelper.getWatchHistory()
+                val latest = api.getAiringSchedule(page = 1, perPage = 20)
                 val trending = api.getTrendingAnime(page = 1, perPage = 20)
                 val popular = api.getPopularAnime(page = 1, perPage = 20)
                 val donghua = api.searchAnime(keyword = "", isDonghua = true)
@@ -51,6 +53,7 @@ class HomeViewModel(
                     isLoading = false,
                     heroAnime = hero,
                     continueWatching = history,
+                    latestEpisodes = latest,
                     trendingAnime = trending,
                     popularAnime = popular,
                     donghuaAnime = donghua

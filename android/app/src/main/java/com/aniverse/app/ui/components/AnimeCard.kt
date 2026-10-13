@@ -114,7 +114,8 @@ fun AnimeCard(
                     .padding(6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                anime.episodes?.let { eps ->
+                val displayEp = anime.currentEpisode ?: anime.episodes
+                displayEp?.let { epNum ->
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
@@ -122,7 +123,7 @@ fun AnimeCard(
                             .padding(horizontal = 5.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "EP $eps",
+                            text = "SUB $epNum",
                             color = TextPrimary,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold

@@ -103,6 +103,35 @@ class AniListApi(
         return parseMediaList(json)
     }
 
+    suspend fun getAiringSchedule(page: Int = 1, perPage: Int = 20, filter: String = "ALL"): List<Anime> {
+        val query = """
+            query (${'$'}page: Int, ${'$'}perPage: Int) {
+              Page(page: ${'$'}page, perPage: ${'$'}perPage) {
+                airingSchedules(notYetAired: false, sort: TIME_DESC) {
+                  episode
+                  airingAt
+                  media {
+                    id
+                    title { romaji english native }
+                    coverImage { extraLarge large }
+                    bannerImage
+                    description(asHtml: false)
+                    genres
+                    averageScore
+                    episodes
+                    status
+                    format
+                    countryOfOrigin
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        val json = executeQuery(query, mapOf("page" to page, "perPage" to perPage * 2)) ?: return emptyList()
+        return parseAiringSchedule(json, filter, perPage)
+    }
+
     suspend fun searchAnime(keyword: String, isDonghua: Boolean = false): List<Anime> {
         val country = if (isDonghua) "CN" else null
         val query = """
@@ -177,6 +206,72 @@ class AniListApi(
                         isDonghua = country == "CN"
                     )
                 )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return list
+    }
+
+    private fun parseAiringSchedule(json: JsonObject, filter: String, limit: Int): List<Anime> {
+        val list = mutableListOf<Anime>()
+        val seen = HashSet<Int>()
+        try {
+            val schedules = json.getAsJsonObject("data")
+                ?.getAsJsonObject("Page")
+                ?.getAsJsonArray("airingSchedules") ?: return emptyList()
+
+            for (elem in schedules) {
+                val item = elem.asJsonObject
+                val episodeNum = item.get("episode")?.asInt ?: 1
+                val mediaObj = item.getAsJsonObject("media") ?: continue
+                val id = mediaObj.get("id").asInt
+
+                if (!seen.add(id)) continue
+
+                val country = mediaObj.get("countryOfOrigin")?.takeIf { !it.isJsonNull }?.asString
+                val isDonghua = country == "CN"
+
+                if (filter.equals("CHINESE", ignoreCase = true) && !isDonghua) continue
+                if (filter.equals("SUB", ignoreCase = true) && isDonghua) continue
+
+                val titleObj = mediaObj.getAsJsonObject("title")
+                val romaji = titleObj?.get("romaji")?.takeIf { !it.isJsonNull }?.asString ?: "Anime"
+                val english = titleObj?.get("english")?.takeIf { !it.isJsonNull }?.asString
+                val coverObj = mediaObj.getAsJsonObject("coverImage")
+                val cover = coverObj?.get("extraLarge")?.takeIf { !it.isJsonNull }?.asString
+                    ?: coverObj?.get("large")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                val banner = mediaObj.get("bannerImage")?.takeIf { !it.isJsonNull }?.asString
+                val desc = mediaObj.get("description")?.takeIf { !it.isJsonNull }?.asString
+                val score = mediaObj.get("averageScore")?.takeIf { !it.isJsonNull }?.asInt
+                val eps = mediaObj.get("episodes")?.takeIf { !it.isJsonNull }?.asInt
+                val status = mediaObj.get("status")?.takeIf { !it.isJsonNull }?.asString
+                val format = mediaObj.get("format")?.takeIf { !it.isJsonNull }?.asString
+
+                val genres = mutableListOf<String>()
+                mediaObj.getAsJsonArray("genres")?.forEach {
+                    if (!it.isJsonNull) genres.add(it.asString)
+                }
+
+                list.add(
+                    Anime(
+                        id = id,
+                        title = romaji,
+                        englishTitle = english,
+                        coverImage = cover,
+                        bannerImage = banner,
+                        description = desc,
+                        genres = genres,
+                        averageScore = score,
+                        episodes = eps,
+                        currentEpisode = episodeNum,
+                        status = status,
+                        format = format,
+                        isDonghua = isDonghua
+                    )
+                )
+
+                if (list.size >= limit) break
             }
         } catch (e: Exception) {
             e.printStackTrace()

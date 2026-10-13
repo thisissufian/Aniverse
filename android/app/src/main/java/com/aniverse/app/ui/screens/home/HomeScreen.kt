@@ -120,6 +120,19 @@ fun HomeScreen(
                     }
                 }
 
+                // Latest Episodes Shelf
+                if (uiState.latestEpisodes.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        AnimeSection(
+                            title = "Latest Episodes",
+                            subtitle = "Recently aired anime releases",
+                            animeList = uiState.latestEpisodes,
+                            onAnimeClick = onAnimeClick
+                        )
+                    }
+                }
+
                 // Trending Now Shelf
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
