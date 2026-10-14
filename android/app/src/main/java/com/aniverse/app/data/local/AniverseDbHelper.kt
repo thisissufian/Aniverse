@@ -151,6 +151,18 @@ class AniverseDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NA
         list
     }
 
+    suspend fun deleteHistoryItem(animeId: Int): Boolean = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        val rows = db.delete(TABLE_HISTORY, "$COL_ANIME_ID = ?", arrayOf(animeId.toString()))
+        rows > 0
+    }
+
+    suspend fun clearWatchHistory(): Boolean = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        val rows = db.delete(TABLE_HISTORY, null, null)
+        rows > 0
+    }
+
     suspend fun toggleWatchlist(anime: Anime): Boolean = withContext(Dispatchers.IO) {
         val db = writableDatabase
         if (isInWatchlist(anime.id)) {

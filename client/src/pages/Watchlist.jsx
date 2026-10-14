@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Cloud, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
+import syncManager from '../services/syncManager';
+import api from '../services/api';
 
 export default function Watchlist() {
   const [lists, setLists] = useState([{ id: 'default', name: 'My List', items: [] }]);
   const [activeListId, setActiveListId] = useState('default');
   const [isCreating, setIsCreating] = useState(false);
   const [newListName, setNewListName] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleUser, setGoogleUser] = useState(null);
 
-  useEffect(() => {
+  const loadLists = () => {
     try {
       const stored = localStorage.getItem('aniverse_watchlists');
       if (stored) {
@@ -19,7 +24,37 @@ export default function Watchlist() {
     } catch (e) {
       console.error(e);
     }
+  };
+
+  useEffect(() => {
+    loadLists();
+
+    // Check Google Drive connection & auto-sync
+    api.Sync.getGoogleStatus().then(res => {
+      if (res.data?.connected) {
+        setGoogleConnected(true);
+        setGoogleUser(res.data.user);
+        handleSync();
+      }
+    }).catch(() => {});
   }, []);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await syncManager.syncNow();
+      if (res.success) {
+        loadLists();
+        toast.success('Favorites synced with Google Drive!');
+      } else {
+        toast.error(res.message || 'Sync failed');
+      }
+    } catch (err) {
+      toast.error('Sync failed');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const saveLists = (newLists) => {
     setLists(newLists);
@@ -72,8 +107,19 @@ export default function Watchlist() {
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 min-h-screen"
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <h1 className="text-3xl font-bold text-white">Watchlists</h1>
+          {googleConnected && (
+            <button
+              onClick={handleSync}
+              disabled={isSyncing}
+              className="flex items-center gap-2 bg-[#8B5CF6]/20 hover:bg-[#8B5CF6]/30 text-[#A78BFA] border border-[#8B5CF6]/40 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors"
+              title="Sync with Google Drive"
+            >
+              <RefreshCw size={13} className={isSyncing ? "animate-spin" : ""} />
+              <span>{isSyncing ? "Syncing..." : "Sync with Phone"}</span>
+            </button>
+          )}
           {lists.length > 1 && (
             <button onClick={() => handleDeleteList(activeListId)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-colors" title="Delete current list">
               <Trash2 size={18} />

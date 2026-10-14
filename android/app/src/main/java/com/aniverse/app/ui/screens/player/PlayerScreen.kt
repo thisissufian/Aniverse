@@ -69,7 +69,8 @@ import kotlinx.coroutines.launch
 class WebAppInterface(
     private val onToggleFullscreen: () -> Unit,
     private val isCurrentFullscreen: () -> Boolean,
-    private val onPlaybackChanged: (Boolean) -> Unit
+    private val onPlaybackChanged: (Boolean) -> Unit,
+    private val onTimeUpdate: (Long, Long) -> Unit = { _, _ -> }
 ) {
     @JavascriptInterface
     fun toggleFullscreen() {
@@ -84,6 +85,11 @@ class WebAppInterface(
     @JavascriptInterface
     fun setPlaybackState(isPlaying: Boolean) {
         onPlaybackChanged(isPlaying)
+    }
+
+    @JavascriptInterface
+    fun onTimeUpdate(positionSec: Float, durationSec: Float) {
+        onTimeUpdate((positionSec * 1000).toLong(), (durationSec * 1000).toLong())
     }
 }
 
@@ -139,6 +145,9 @@ fun PlayerScreen(
     var volumeFeedback by remember { mutableStateOf<Float?>(null) }
     var brightnessFeedback by remember { mutableStateOf<Float?>(null) }
     var lockFeedbackText by remember { mutableStateOf<String?>(null) }
+    var currentPlayPositionMs by remember { mutableLongStateOf(0L) }
+    var totalPlayDurationMs by remember { mutableLongStateOf(1440000L) }
+    var resumeBannerText by remember { mutableStateOf<String?>(null) }
 
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
@@ -212,12 +221,13 @@ fun PlayerScreen(
         }
     }
 
-    // Manage PiP Active state
+    // Manage PiP & NowPlaying Active state
     DisposableEffect(Unit) {
         PipController.isPlayerActive = true
         onDispose {
             PipController.isPlayerActive = false
             PipController.isVideoPlaying = false
+            com.aniverse.app.util.NowPlayingController.setPlaybackState(false)
             activity?.let { act ->
                 act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                 WindowCompat.getInsetsController(act.window, act.window.decorView).show(WindowInsetsCompat.Type.systemBars())
@@ -275,6 +285,9 @@ fun PlayerScreen(
                     if (embedResult.embedUrl.endsWith(".m3u8") || embedResult.embedUrl.endsWith(".mp4")) {
                         exoPlayer.setMediaItem(MediaItem.fromUri(embedResult.embedUrl))
                         exoPlayer.prepare()
+                        if (currentPlayPositionMs > 2000L) {
+                            exoPlayer.seekTo(currentPlayPositionMs)
+                        }
                     }
                 } else {
                     streamError = "Could not retrieve streaming link from ${target.name}"
@@ -304,6 +317,12 @@ fun PlayerScreen(
                     val initialEp = history?.let { h -> list.find { it.number == h.episodeNumber } } ?: list.first()
                     currentEpisode = initialEp
                     selectedChunkIndex = (initialEp.number - 1).coerceAtLeast(0) / chunkSize
+
+                    if (history != null && history.episodeNumber == initialEp.number && history.positionMs > 2000L) {
+                        currentPlayPositionMs = history.positionMs
+                        totalPlayDurationMs = if (history.durationMs > 0) history.durationMs else 1440000L
+                        resumeBannerText = "Resumed at ${com.aniverse.app.util.NowPlayingController.formatTimestamp(history.positionMs)}"
+                    }
                 } else {
                     episodesError = "No episodes found for '$animeTitle'."
                 }
@@ -321,7 +340,38 @@ fun PlayerScreen(
 
     LaunchedEffect(currentEpisode) {
         currentEpisode?.let { ep ->
+            val history = dbHelper.getWatchHistory().find { it.animeId == animeId && it.episodeNumber == ep.number }
+            val pos = history?.positionMs ?: 0L
+            val dur = if ((history?.durationMs ?: 0L) > 0) history!!.durationMs else 1440000L
+            currentPlayPositionMs = pos
+            totalPlayDurationMs = dur
+
+            if (pos > 2000L) {
+                resumeBannerText = "Resumed at ${com.aniverse.app.util.NowPlayingController.formatTimestamp(pos)}"
+            }
+
+            com.aniverse.app.util.NowPlayingController.setNowPlaying(
+                animeId = animeId,
+                title = animeTitle,
+                englishTitle = englishTitle,
+                coverUrl = coverUrl,
+                format = format,
+                episodeNumber = ep.number,
+                episodeTitle = ep.title,
+                positionMs = pos,
+                durationMs = dur,
+                isPlaying = true
+            )
+
             loadStreamForEpisode(ep)
+        }
+    }
+
+    // Auto-dismiss resume banner after 5s
+    LaunchedEffect(resumeBannerText) {
+        if (resumeBannerText != null) {
+            delay(5000)
+            resumeBannerText = null
         }
     }
 
@@ -347,44 +397,57 @@ fun PlayerScreen(
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 PipController.isVideoPlaying = isPlaying
+                com.aniverse.app.util.NowPlayingController.setPlaybackState(isPlaying)
             }
         }
         exoPlayer.addListener(listener)
         onDispose { exoPlayer.removeListener(listener) }
     }
 
-    LaunchedEffect(exoPlayer) {
+    // Universal Playback Progress Tracker (ExoPlayer & WebView)
+    LaunchedEffect(Unit) {
         while (true) {
-            if (exoPlayer.isPlaying) {
-                val pos = exoPlayer.currentPosition
-                val dur = exoPlayer.duration
+            delay(1000)
+            if (PipController.isVideoPlaying) {
+                val isDirectStream = embedUrl?.endsWith(".m3u8") == true || embedUrl?.endsWith(".mp4") == true
+                if (isDirectStream) {
+                    currentPlayPositionMs = exoPlayer.currentPosition
+                    if (exoPlayer.duration > 1000) {
+                        totalPlayDurationMs = exoPlayer.duration
+                    }
+                } else {
+                    currentPlayPositionMs += 1000L
+                }
 
                 introInterval?.let { intro ->
-                    showSkipIntro = pos in intro.start..intro.end
-                    if (appPrefs.autoSkipIntro && pos in intro.start..(intro.start + 2500)) {
-                        exoPlayer.seekTo(intro.end + 1000)
+                    showSkipIntro = currentPlayPositionMs in intro.start..intro.end
+                    if (appPrefs.autoSkipIntro && currentPlayPositionMs in intro.start..(intro.start + 2500)) {
+                        val skipTarget = intro.end + 1000
+                        currentPlayPositionMs = skipTarget
+                        if (isDirectStream) exoPlayer.seekTo(skipTarget)
                         showSkipIntro = false
                     }
                 }
 
                 outroInterval?.let { outro ->
-                    showSkipOutro = pos in outro.start..outro.end
+                    showSkipOutro = currentPlayPositionMs in outro.start..outro.end
                 }
 
-                if (pos > 1000 && dur > 1000) {
+                com.aniverse.app.util.NowPlayingController.updateProgress(currentPlayPositionMs, totalPlayDurationMs)
+
+                if (currentPlayPositionMs > 1000) {
                     currentEpisode?.let { ep ->
                         dbHelper.saveProgress(
                             animeId = animeId,
                             title = englishTitle ?: animeTitle,
                             coverUrl = coverUrl,
                             episodeNum = ep.number,
-                            positionMs = pos,
-                            durationMs = dur
+                            positionMs = currentPlayPositionMs,
+                            durationMs = totalPlayDurationMs
                         )
                     }
                 }
             }
-            delay(1000)
         }
     }
 
@@ -493,6 +556,19 @@ fun PlayerScreen(
                         </iframe>
 
                         <script>
+                            var initialSeek = Math.floor(${(currentPlayPositionMs / 1000).coerceAtLeast(0)});
+                            var iframe = document.getElementById('player-frame');
+                            if (initialSeek > 2 && iframe) {
+                                iframe.addEventListener('load', function() {
+                                    setTimeout(function() {
+                                        try {
+                                            iframe.contentWindow.postMessage({ command: 'seek', time: initialSeek }, '*');
+                                            iframe.contentWindow.postMessage({ event: 'seek', time: initialSeek }, '*');
+                                        } catch(e) {}
+                                    }, 1500);
+                                });
+                            }
+
                             window.addEventListener('message', function(event) {
                                 var data = event.data;
                                 if (typeof data === 'string') {
@@ -520,6 +596,15 @@ fun PlayerScreen(
                                     if (window.AndroidBridge) window.AndroidBridge.setPlaybackState(true);
                                 } else if (evt === 'pause' || evt === 'ended' || evt === 'complete') {
                                     if (window.AndroidBridge) window.AndroidBridge.setPlaybackState(false);
+                                }
+
+                                // Handle time update
+                                if (evt === 'time' || evt === 'timeupdate') {
+                                    var cur = data.currentTime || data.time || (data.data && data.data.time);
+                                    var dur = data.duration || (data.data && data.data.duration);
+                                    if (cur && window.AndroidBridge) {
+                                        window.AndroidBridge.onTimeUpdate(cur, dur || 1440);
+                                    }
                                 }
                             });
                         </script>
@@ -559,6 +644,14 @@ fun PlayerScreen(
                                     onPlaybackChanged = { isPlaying ->
                                         scope.launch(Dispatchers.Main) {
                                             PipController.isVideoPlaying = isPlaying
+                                            com.aniverse.app.util.NowPlayingController.setPlaybackState(isPlaying)
+                                        }
+                                    },
+                                    onTimeUpdate = { posMs, durMs ->
+                                        scope.launch(Dispatchers.Main) {
+                                            currentPlayPositionMs = posMs
+                                            if (durMs > 1000) totalPlayDurationMs = durMs
+                                            com.aniverse.app.util.NowPlayingController.updateProgress(posMs, durMs)
                                         }
                                     }
                                 ),
@@ -764,6 +857,52 @@ fun PlayerScreen(
                                     tint = AccentAmber
                                 )
                             }
+                        }
+                    }
+
+                    // Resume Timestamp HUD (YouTube style)
+                    AnimatedVisibility(
+                        visible = resumeBannerText != null,
+                        enter = fadeIn() + slideInVertically(),
+                        exit = fadeOut() + slideOutVertically(),
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 58.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(DarkSurface.copy(alpha = 0.95f))
+                                .border(1.dp, PrimaryViolet.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.History, contentDescription = null, tint = PrimaryViolet, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = resumeBannerText ?: "", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Start Over",
+                                color = AccentAmber,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable {
+                                    currentPlayPositionMs = 0L
+                                    exoPlayer.seekTo(0)
+                                    webViewInstance?.evaluateJavascript(
+                                        """
+                                        (function() {
+                                            var iframe = document.getElementById('player-frame');
+                                            if (iframe && iframe.contentWindow) {
+                                                iframe.contentWindow.postMessage({ command: 'seek', time: 0 }, '*');
+                                                iframe.contentWindow.postMessage({ event: 'seek', time: 0 }, '*');
+                                            }
+                                        })();
+                                        """.trimIndent(), null
+                                    )
+                                    resumeBannerText = null
+                                }
+                            )
                         }
                     }
 

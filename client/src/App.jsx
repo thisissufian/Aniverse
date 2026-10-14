@@ -14,11 +14,14 @@ import Watchlist from './pages/Watchlist';
 import History from './pages/History';
 import Profile from './pages/Profile';
 
+import NowPlayingBar from './components/layout/NowPlayingBar';
+
 function Layout({ children }) {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
       <main className="flex-grow">{children}</main>
+      <NowPlayingBar />
       <Footer />
     </div>
   );

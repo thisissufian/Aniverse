@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import Artplayer from 'artplayer';
 import Hls from 'hls.js';
 
-export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, skipData, onEnded }) {
+export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, skipData, startTime, onEnded }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -72,15 +72,23 @@ export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, s
     const handleMessage = (e) => {
       try {
         const msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        if (msg?.event === 'PLAYER_READY' && skipData) {
-          // Send skip data back to the iframe so it can display its own skip buttons
-          iframeRef.current?.contentWindow?.postMessage(JSON.stringify({
-            event: 'SKP_DATA',
-            data: {
-              value: [skipData.intro || [], skipData.outro || []],
-              auto: false
-            }
-          }), '*');
+        if (msg?.event === 'PLAYER_READY' || msg?.event === 'ready' || msg?.type === 'ready') {
+          if (startTime > 2) {
+            setTimeout(() => {
+              iframeRef.current?.contentWindow?.postMessage(JSON.stringify({ command: 'seek', time: Number(startTime) }), '*');
+              iframeRef.current?.contentWindow?.postMessage(JSON.stringify({ event: 'seek', time: Number(startTime) }), '*');
+            }, 800);
+          }
+          if (skipData) {
+            // Send skip data back to the iframe so it can display its own skip buttons
+            iframeRef.current?.contentWindow?.postMessage(JSON.stringify({
+              event: 'SKP_DATA',
+              data: {
+                value: [skipData.intro || [], skipData.outro || []],
+                auto: false
+              }
+            }), '*');
+          }
         }
 
         // Handle video ended for auto-next (Vidstream/MegaPlay variations)
@@ -94,7 +102,7 @@ export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, s
     
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [url, isEmbed, skipData, onEnded]);
+  }, [url, isEmbed, skipData, startTime, onEnded]);
 
   if (isEmbed || url?.includes('megaplay.buzz') || url?.includes('stream') || url?.includes('iframe') || url?.includes('embtaku.pro') || url?.includes('gogoplay') || url?.includes('vidstreaming')) {
     return (
@@ -106,6 +114,14 @@ export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, s
         allow="autoplay; fullscreen; picture-in-picture"
         className="w-full h-full border-none bg-black"
         title={title || "Video Player"}
+        onLoad={() => {
+          if (startTime > 2) {
+            setTimeout(() => {
+              iframeRef.current?.contentWindow?.postMessage(JSON.stringify({ command: 'seek', time: Number(startTime) }), '*');
+              iframeRef.current?.contentWindow?.postMessage(JSON.stringify({ event: 'seek', time: Number(startTime) }), '*');
+            }, 1200);
+          }
+        }}
       />
     );
   }

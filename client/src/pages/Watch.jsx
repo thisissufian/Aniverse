@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Play, SkipForward, Maximize, Settings, Heart, Star, LayoutGrid, Plus } from 'lucide-react';
 import api from '../services/api';
@@ -9,6 +9,8 @@ import WatchlistModal from '../components/ui/WatchlistModal';
 
 export default function Watch() {
   const { animeId, episodeId } = useParams();
+  const [searchParams] = useSearchParams();
+  const resumeTimeParam = searchParams.get('t');
   const navigate = useNavigate();
   const [episodes, setEpisodes] = useState([]);
   const [anime, setAnime] = useState(null);
@@ -102,17 +104,27 @@ export default function Watch() {
             setEmbedUrl(streamData.embedUrl);
           }
 
-          // Save to Local History
+          // Save to Local History with exact timestamp
           try {
             const history = JSON.parse(localStorage.getItem('aniverse_history') || '[]');
+            const savedItem = history.find(h => h.animeId === animeId);
+            const initialTime = resumeTimeParam ? Number(resumeTimeParam) : (savedItem?.time || Math.round((savedItem?.positionMs || 0) / 1000) || 0);
+            const duration = savedItem?.duration || (animeData?.duration ? animeData.duration * 60 : 1440);
+
             const historyItem = {
               animeId: animeId,
               episodeId: targetEpisodeId,
               title: animeData?.title?.english || animeData?.title?.romaji,
               image: animeData?.bannerImage || animeData?.coverImage?.large,
+              coverUrl: animeData?.coverImage?.large || animeData?.bannerImage,
               episodeNumber: targetEpisode.number,
               episodeTitle: targetEpisode.title || '',
-              timestamp: Date.now()
+              time: initialTime,
+              positionMs: initialTime * 1000,
+              duration: duration,
+              durationMs: duration * 1000,
+              timestamp: Date.now(),
+              updatedAt: new Date().toISOString()
             };
             
             // Remove previous entry for this anime if exists
@@ -123,6 +135,19 @@ export default function Watch() {
             if (filteredHistory.length > 100) filteredHistory.pop();
             
             localStorage.setItem('aniverse_history', JSON.stringify(filteredHistory));
+
+            // Set Now Playing for Spotify-like mini player bar
+            localStorage.setItem('aniverse_now_playing', JSON.stringify({
+              animeId,
+              episodeId: targetEpisodeId,
+              episodeNumber: targetEpisode.number,
+              title: animeData?.title?.english || animeData?.title?.romaji,
+              coverImage: animeData?.coverImage?.large || animeData?.bannerImage,
+              time: initialTime,
+              duration,
+              isPlaying: true
+            }));
+            window.dispatchEvent(new Event('aniverse_now_playing_update'));
           } catch (e) {
             console.error('Failed to save history', e);
           }
@@ -139,7 +164,44 @@ export default function Watch() {
       }
     };
     fetchStreamData();
-  }, [animeId, episodeId]);
+  }, [animeId, episodeId, resumeTimeParam]);
+
+  // Live ticker updating watch timestamp and Now Playing state
+  useEffect(() => {
+    if (!animeId || loading) return;
+
+    const interval = setInterval(() => {
+      try {
+        const history = JSON.parse(localStorage.getItem('aniverse_history') || '[]');
+        const idx = history.findIndex(h => h.animeId === animeId);
+        if (idx !== -1) {
+          const item = history[idx];
+          const newTime = (item.time || 0) + 2;
+          const dur = item.duration || 1440;
+          item.time = newTime;
+          item.positionMs = newTime * 1000;
+          item.duration = dur;
+          item.durationMs = dur * 1000;
+          item.updatedAt = new Date().toISOString();
+          localStorage.setItem('aniverse_history', JSON.stringify(history));
+
+          localStorage.setItem('aniverse_now_playing', JSON.stringify({
+            animeId,
+            episodeId: item.episodeId,
+            episodeNumber: item.episodeNumber,
+            title: item.title,
+            coverImage: item.image || item.coverUrl,
+            time: newTime,
+            duration: dur,
+            isPlaying: true
+          }));
+          window.dispatchEvent(new Event('aniverse_now_playing_update'));
+        }
+      } catch (e) {}
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [animeId, loading]);
 
   const handleServerClick = async (server) => {
     if (server.linkId === currentServerId) return;
@@ -226,6 +288,7 @@ export default function Watch() {
                 isEmbed={true}
                 title={`${title} - Episode ${currentEpIndex + 1}`}
                 skipData={skipData}
+                startTime={resumeTimeParam ? Number(resumeTimeParam) : 0}
                 onEnded={handleNextEpisode}
               />
             ) : (

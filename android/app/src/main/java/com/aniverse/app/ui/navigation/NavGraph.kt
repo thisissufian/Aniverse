@@ -1,32 +1,61 @@
 package com.aniverse.app.ui.navigation
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.aniverse.app.ui.components.AniverseBottomBar
+import com.aniverse.app.ui.components.NowPlayingBar
 import com.aniverse.app.ui.screens.home.HomeScreen
 import com.aniverse.app.ui.screens.player.PlayerScreen
 import com.aniverse.app.ui.screens.profile.ProfileScreen
 import com.aniverse.app.ui.screens.search.SearchScreen
 import com.aniverse.app.ui.screens.watchlist.WatchlistScreen
 import com.aniverse.app.ui.theme.DarkCanvas
+import com.aniverse.app.util.NowPlayingController
 
 @Composable
 fun NavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier
 ) {
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
     Scaffold(
         containerColor = DarkCanvas,
         bottomBar = {
-            AniverseBottomBar(navController = navController)
+            if (currentRoute?.startsWith("player") != true) {
+                Column {
+                    NowPlayingBar(
+                        onBarClick = {
+                            if (NowPlayingController.animeId > 0) {
+                                navController.navigate(
+                                    Screen.Player.createRoute(
+                                        animeId = NowPlayingController.animeId,
+                                        title = NowPlayingController.animeTitle,
+                                        englishTitle = NowPlayingController.englishTitle,
+                                        cover = NowPlayingController.coverUrl,
+                                        format = NowPlayingController.format
+                                    )
+                                ) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                    )
+                    AniverseBottomBar(navController = navController)
+                }
+            }
         },
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->

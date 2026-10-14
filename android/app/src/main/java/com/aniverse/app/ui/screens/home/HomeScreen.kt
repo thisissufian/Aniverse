@@ -281,17 +281,27 @@ fun ContinueWatchingCard(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            Text(
-                text = "Episode ${item.episodeNumber}",
-                color = PrimaryViolet,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "EP ${item.episodeNumber}",
+                    color = PrimaryViolet,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                if (item.positionMs > 0) {
+                    Text(text = " • ", color = TextMuted, fontSize = 11.sp)
+                    Text(
+                        text = com.aniverse.app.util.NowPlayingController.formatTimestamp(item.positionMs),
+                        color = TextMuted,
+                        fontSize = 11.sp
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(6.dp))
 
             LinearProgressIndicator(
-                progress = progress,
+                progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(3.dp)
