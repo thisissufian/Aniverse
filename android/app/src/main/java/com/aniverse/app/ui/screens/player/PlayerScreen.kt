@@ -71,7 +71,8 @@ class WebAppInterface(
     private val isCurrentFullscreen: () -> Boolean,
     private val onPlaybackChanged: (Boolean) -> Unit,
     private val onTimeUpdate: (Long, Long) -> Unit = { _, _ -> },
-    private val onTriggerMiniPlayer: () -> Unit = {}
+    private val onTriggerMiniPlayer: () -> Unit = {},
+    private val canTriggerMiniPlayer: () -> Boolean = { true }
 ) {
     @JavascriptInterface
     fun toggleFullscreen() {
@@ -95,7 +96,9 @@ class WebAppInterface(
 
     @JavascriptInterface
     fun triggerMiniPlayer() {
-        onTriggerMiniPlayer()
+        if (canTriggerMiniPlayer()) {
+            onTriggerMiniPlayer()
+        }
     }
 }
 
@@ -158,6 +161,8 @@ fun PlayerScreen(
     var currentPlayPositionMs by remember { mutableLongStateOf(0L) }
     var totalPlayDurationMs by remember { mutableLongStateOf(1440000L) }
     var resumeBannerText by remember { mutableStateOf<String?>(null) }
+    var streamLoadStartTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var lastLoadedEmbedUrl by remember { mutableStateOf<String?>(null) }
 
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
@@ -207,8 +212,8 @@ fun PlayerScreen(
             override fun onOrientationChanged(orientation: Int) {
                 if (orientation == ORIENTATION_UNKNOWN) return
 
-                // If orientation is locked by user, do NOT rotate automatically
-                if (isOrientationLocked) return
+                // If minimized to floating mini-player or locked by user, do NOT rotate automatically
+                if (isMinimized || isOrientationLocked) return
 
                 val isLandscape = (orientation in 65..115) || (orientation in 245..295)
                 val isPortrait = (orientation in 340..360) || (orientation in 0..20) || (orientation in 160..200)
@@ -246,15 +251,12 @@ fun PlayerScreen(
         }
     }
 
-    // Handle back button (exits fullscreen, minimizes, or closes)
-    BackHandler(enabled = true) {
+    // Handle back button (exits fullscreen or minimizes to floating mini-player)
+    BackHandler(enabled = !isMinimized) {
         if (isFullscreen) {
             setFullscreenMode(false)
-        } else if (!isMinimized) {
-            onMinimize()
         } else {
-            onClose()
-            onBackClick()
+            onMinimize()
         }
     }
 
@@ -298,6 +300,7 @@ fun PlayerScreen(
     // Stream resolution function
     fun loadStreamForEpisode(episode: Episode, preferredServer: ServerItem? = null) {
         scope.launch {
+            streamLoadStartTime = System.currentTimeMillis()
             isLoadingStream = true
             streamError = null
             embedUrl = null
@@ -635,17 +638,24 @@ fun PlayerScreen(
                                 if (typeof data === 'string') {
                                     try { data = JSON.parse(data); } catch(e) {}
                                 }
-                                if (!data) return;
-
-                                var rawStr = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
-                                var lowerStr = (rawStr || '').toLowerCase();
+                                if (!data || typeof data !== 'object') return;
 
                                 // In-player mini player / PIP button trigger from player controls
+                                var isPipTrigger = false;
                                 if (data.megaCommand === 'pip' || data.megaCommand === 'togglePip' || data.megaCommand === 'miniPlayer' || data.megaCommand === 'mini' ||
-                                    data.command === 'pip' || data.command === 'togglePip' || data.command === 'mini' || data.command === 'miniPlayer' ||
-                                    data.event === 'pip' || data.event === 'enterpip' || data.event === 'enterpictureinpicture' ||
-                                    data.type === 'pip' || data.type === 'mini' || data.type === 'miniplayer' ||
-                                    lowerStr.indexOf('pip') !== -1 || lowerStr.indexOf('miniplayer') !== -1 || lowerStr.indexOf('pictureinpicture') !== -1) {
+                                    data.command === 'pip' || data.command === 'togglePip' || data.command === 'miniPlayer' || data.command === 'mini') {
+                                    isPipTrigger = true;
+                                }
+                                // handle-bridge PIP_STATE event - MUST ONLY trigger when active/pip is TRUE
+                                if ((data.event === 'PIP_STATE' || data.type === 'PIP_STATE') && (data.active === true || data.pip === true)) {
+                                    isPipTrigger = true;
+                                }
+                                if (data.event === 'pipEnter' || data.event === 'enterpictureinpicture' ||
+                                    data.type === 'pipEnter' || data.type === 'enterpictureinpicture') {
+                                    isPipTrigger = true;
+                                }
+
+                                if (isPipTrigger) {
                                     if (window.AndroidBridge && window.AndroidBridge.triggerMiniPlayer) {
                                         window.AndroidBridge.triggerMiniPlayer();
                                     }
@@ -674,7 +684,7 @@ fun PlayerScreen(
                                 }
 
                                 // Handle time update
-                                if (evt === 'time' || evt === 'timeupdate') {
+                                if (evt === 'time' || evt === 'timeupdate' || data.event === 'CURRENT_TIME') {
                                     var cur = data.currentTime || data.time || (data.data && data.data.time);
                                     var dur = data.duration || (data.data && data.data.duration);
                                     if (cur && window.AndroidBridge) {
@@ -733,6 +743,9 @@ fun PlayerScreen(
                                         scope.launch(Dispatchers.Main) {
                                             onMinimize()
                                         }
+                                    },
+                                    canTriggerMiniPlayer = {
+                                        !isMinimized && (System.currentTimeMillis() - streamLoadStartTime > 2500L)
                                     }
                                 ),
                                 "AndroidBridge"
@@ -745,29 +758,6 @@ fun PlayerScreen(
                                         return false
                                     }
                                     return true
-                                }
-
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    view?.evaluateJavascript(
-                                        """
-                                        (function() {
-                                            try {
-                                                Object.defineProperty(document, 'pictureInPictureEnabled', { get: function() { return true; }, configurable: true });
-                                                if (window.HTMLVideoElement && !HTMLVideoElement.prototype._pipHooked) {
-                                                    HTMLVideoElement.prototype._pipHooked = true;
-                                                    HTMLVideoElement.prototype.requestPictureInPicture = function() {
-                                                        if (window.AndroidBridge && window.AndroidBridge.triggerMiniPlayer) {
-                                                            window.AndroidBridge.triggerMiniPlayer();
-                                                        }
-                                                        return Promise.resolve();
-                                                    };
-                                                }
-                                            } catch(e) {}
-                                        })();
-                                        """.trimIndent(),
-                                        null
-                                    )
                                 }
                             }
 
@@ -787,13 +777,17 @@ fun PlayerScreen(
                                 }
                             }
 
+                            lastLoadedEmbedUrl = embedUrl
                             loadDataWithBaseURL("https://anikototv.to/", embedHtml, "text/html", "UTF-8", null)
                             webViewInstance = this
                         }
                     },
                     update = { webView ->
                         webViewInstance = webView
-                        webView.loadDataWithBaseURL("https://anikototv.to/", embedHtml, "text/html", "UTF-8", null)
+                        if (lastLoadedEmbedUrl != embedUrl && !embedUrl.isNullOrEmpty()) {
+                            lastLoadedEmbedUrl = embedUrl
+                            webView.loadDataWithBaseURL("https://anikototv.to/", embedHtml, "text/html", "UTF-8", null)
+                        }
                     },
                     modifier = Modifier.fillMaxSize()
                 )
