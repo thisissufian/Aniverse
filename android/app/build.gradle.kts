@@ -105,4 +105,7 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Google Sign-In & Auth for Drive Sync
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 }

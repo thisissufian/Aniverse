@@ -57,4 +57,12 @@ const MAL = {
   syncAll: () => api.post('/mal/sync-all'),
 };
 
-export default { Auth, Anime, Stream, User, MAL };
+const Sync = {
+  getGoogleAuthUrl: () => api.get('/sync/google/auth-url'),
+  getGoogleStatus: () => api.get('/sync/google/status'),
+  disconnectGoogle: () => api.post('/sync/google/disconnect'),
+  downloadGoogleSync: () => api.get('/sync/google/download'),
+  uploadGoogleSync: (syncData) => api.post('/sync/google/upload', { syncData }),
+};
+
+export default { Auth, Anime, Stream, User, MAL, Sync };

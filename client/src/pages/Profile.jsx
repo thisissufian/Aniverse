@@ -1,7 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Save, Download, Upload, User, Trash2 } from 'lucide-react';
+import { Settings, Save, Download, Upload, User, Trash2, Cloud, RefreshCw, LogOut, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../services/api';
+import syncManager from '../services/syncManager';
 
 export default function Profile() {
   const fileInputRef = useRef(null);
@@ -11,6 +13,87 @@ export default function Profile() {
     autoPlay: localStorage.getItem('autoPlay') !== 'false',
     defaultAudio: localStorage.getItem('defaultAudio') || 'sub',
   });
+
+  const [googleSync, setGoogleSync] = useState({
+    connected: false,
+    user: null,
+    lastSynced: null,
+  });
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  useEffect(() => {
+    fetchGoogleStatus();
+
+    const handleMessage = (event) => {
+      if (event.data?.type === 'GOOGLE_DRIVE_CONNECTED') {
+        toast.success(`Google Drive connected as ${event.data.user?.email || 'User'}!`);
+        fetchGoogleStatus();
+        syncManager.syncNow().then(res => {
+          if (res.success) toast.success('Initial cloud sync completed!');
+        });
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  const fetchGoogleStatus = async () => {
+    try {
+      const res = await api.Sync.getGoogleStatus();
+      if (res.data?.success) {
+        setGoogleSync({
+          connected: res.data.connected,
+          user: res.data.user,
+          lastSynced: res.data.lastSynced,
+        });
+      }
+    } catch (e) {
+      console.error('Failed to get Google status', e);
+    }
+  };
+
+  const handleConnectGoogle = async () => {
+    try {
+      const res = await api.Sync.getGoogleAuthUrl();
+      if (res.data?.url) {
+        const width = 500;
+        const height = 650;
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+        window.open(
+          res.data.url,
+          'google_oauth_popup',
+          `width=${width},height=${height},top=${top},left=${left},toolbar=no,menubar=no`
+        );
+      }
+    } catch (e) {
+      toast.error('Failed to initiate Google login');
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    if (!window.confirm('Disconnect Google Drive sync? Your local data will not be affected.')) return;
+    try {
+      await api.Sync.disconnectGoogle();
+      setGoogleSync({ connected: false, user: null, lastSynced: null });
+      toast.success('Google Drive disconnected');
+    } catch (e) {
+      toast.error('Failed to disconnect');
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setIsSyncing(true);
+    const res = await syncManager.syncNow();
+    setIsSyncing(false);
+    if (res.success) {
+      toast.success('Cloud sync complete! Watchlist & history updated.');
+      fetchGoogleStatus();
+    } else {
+      toast.error(res.message || 'Sync failed');
+    }
+  };
 
   const handleToggle = (key) => {
     const newValue = !preferences[key];
@@ -229,6 +312,81 @@ export default function Profile() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Google Drive Cross-Device Cloud Sync Card */}
+      <div className="mt-8 bg-[#1a1a2e] border border-[#2D2D44] rounded-2xl p-6 md:p-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center space-x-3">
+            <div className="w-12 h-12 bg-[#06B6D4]/15 rounded-xl flex items-center justify-center">
+              <Cloud size={28} className="text-[#06B6D4]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                Google Drive Cloud Sync
+                {googleSync.connected && (
+                  <span className="flex items-center gap-1 text-xs font-semibold bg-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full">
+                    <CheckCircle size={12} /> Connected
+                  </span>
+                )}
+              </h2>
+              <p className="text-gray-400 text-sm">
+                Seamlessly sync exact-second timestamps, watch history, and watchlists with your Android phone
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {googleSync.connected ? (
+              <>
+                <button
+                  onClick={handleSyncNow}
+                  disabled={isSyncing}
+                  className="bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors flex items-center space-x-2"
+                >
+                  <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
+                  <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
+                </button>
+                <button
+                  onClick={handleDisconnectGoogle}
+                  className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors flex items-center space-x-1.5"
+                >
+                  <LogOut size={16} />
+                  <span>Disconnect</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleConnectGoogle}
+                className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-[#8B5CF6]/20 flex items-center space-x-2"
+              >
+                <Cloud size={18} />
+                <span>Connect Google Drive</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {googleSync.connected && (
+          <div className="bg-[#13131a] rounded-xl p-4 border border-[#26263A] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
+            <div className="flex items-center space-x-3">
+              {googleSync.user?.picture ? (
+                <img src={googleSync.user.picture} alt="" className="w-8 h-8 rounded-full" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-[#8B5CF6]/20 flex items-center justify-center text-[#8B5CF6] font-bold">
+                  {googleSync.user?.email?.[0]?.toUpperCase() || 'G'}
+                </div>
+              )}
+              <div>
+                <p className="text-white font-medium">{googleSync.user?.name || 'Google Account'}</p>
+                <p className="text-gray-400 text-xs">{googleSync.user?.email}</p>
+              </div>
+            </div>
+            <div className="text-gray-400 text-xs">
+              Last synced: {googleSync.lastSynced ? new Date(googleSync.lastSynced).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Not yet synced'}
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   );
