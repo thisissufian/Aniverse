@@ -43,6 +43,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
+        viewModel.loadData()
         viewModel.refreshHistory()
     }
 
@@ -158,26 +159,32 @@ fun HomeScreen(
                     }
                 }
 
-                // 4. Top Airing
+                // 4. Top Airing / TV
                 if (uiState.topAiring.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(20.dp))
+                        val isKdrama = uiState.mode == com.aniverse.app.data.local.AppPreferences.MODE_KDRAMA
+                        val isHollywood = uiState.mode == com.aniverse.app.data.local.AppPreferences.MODE_HOLLYWOOD
+
                         AnimeSection(
-                            title = "Top Airing",
-                            subtitle = "Currently releasing seasonal anime",
+                            title = if (isKdrama) "Trending Korean TV" else if (isHollywood) "Popular TV Series" else "Top Airing",
+                            subtitle = if (isKdrama) "Latest scripted series and broadcast releases" else if (isHollywood) "Binge-worthy shows & serials" else "Currently releasing seasonal anime",
                             animeList = uiState.topAiring,
                             onAnimeClick = onAnimeClick
                         )
                     }
                 }
 
-                // 5. Most Popular
+                // 5. Most Popular / Movies
                 if (uiState.mostPopular.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(20.dp))
+                        val isKdrama = uiState.mode == com.aniverse.app.data.local.AppPreferences.MODE_KDRAMA
+                        val isHollywood = uiState.mode == com.aniverse.app.data.local.AppPreferences.MODE_HOLLYWOOD
+
                         AnimeSection(
-                            title = "Most Popular",
-                            subtitle = "All-time legendary favorites",
+                            title = if (isKdrama) "Popular K-Movies" else if (isHollywood) "Popular Blockbusters" else "Most Popular",
+                            subtitle = if (isKdrama) "Award-winning Korean cinema & features" else if (isHollywood) "Top movies and worldwide hits" else "All-time legendary favorites",
                             animeList = uiState.mostPopular,
                             onAnimeClick = onAnimeClick
                         )

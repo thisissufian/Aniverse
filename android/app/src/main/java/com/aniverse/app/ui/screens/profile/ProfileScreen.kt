@@ -3,8 +3,11 @@ package com.aniverse.app.ui.screens.profile
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -39,6 +42,7 @@ fun ProfileScreen(
     var autoSkipIntro by remember { mutableStateOf(appPrefs.autoSkipIntro) }
     var autoPlayNext by remember { mutableStateOf(appPrefs.autoPlayNext) }
     var preferDub by remember { mutableStateOf(appPrefs.preferDub) }
+    var appMode by remember { mutableStateOf(appPrefs.appMode) }
 
     var googleAccount by remember { mutableStateOf(syncManager.getSignedInAccount()) }
     var isSyncing by remember { mutableStateOf(false) }
@@ -78,6 +82,63 @@ fun ProfileScreen(
         )
 
         Spacer(modifier = Modifier.height(20.dp))
+
+        // Entertainment Mode Choice
+        Text(
+            text = "ENTERTAINMENT MODE CHOICE",
+            color = PrimaryViolet,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                ModeSelectionItem(
+                    title = "Anime",
+                    subtitle = "AniList, top airing sub/dub Japanese anime & Donghua",
+                    isSelected = appMode == AppPreferences.MODE_ANIME,
+                    accentColor = PrimaryViolet,
+                    onClick = {
+                        appMode = AppPreferences.MODE_ANIME
+                        appPrefs.appMode = AppPreferences.MODE_ANIME
+                    }
+                )
+
+                HorizontalDivider(color = DarkBorder)
+
+                ModeSelectionItem(
+                    title = "K-Drama & Movies",
+                    subtitle = "Korean drama series, rom-coms, thrillers & K-cinema",
+                    isSelected = appMode == AppPreferences.MODE_KDRAMA,
+                    accentColor = Color(0xFFEC4899),
+                    onClick = {
+                        appMode = AppPreferences.MODE_KDRAMA
+                        appPrefs.appMode = AppPreferences.MODE_KDRAMA
+                    }
+                )
+
+                HorizontalDivider(color = DarkBorder)
+
+                ModeSelectionItem(
+                    title = "Hollywood & Series",
+                    subtitle = "Hollywood blockbusters, global TV series & movies",
+                    isSelected = appMode == AppPreferences.MODE_HOLLYWOOD,
+                    accentColor = AccentCyan,
+                    onClick = {
+                        appMode = AppPreferences.MODE_HOLLYWOOD
+                        appPrefs.appMode = AppPreferences.MODE_HOLLYWOOD
+                    }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Playback Card
         Text(
@@ -368,3 +429,61 @@ fun SettingToggleItem(
         )
     }
 }
+
+@Composable
+private fun ModeSelectionItem(
+    title: String,
+    subtitle: String,
+    isSelected: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isSelected) accentColor.copy(alpha = 0.12f) else Color.Transparent)
+            .clickable { onClick() }
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(if (isSelected) accentColor else DarkCard)
+                .border(
+                    width = 2.dp,
+                    color = if (isSelected) accentColor else DarkBorder,
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = if (isSelected) TextPrimary else TextSecondary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = subtitle,
+                color = TextMuted,
+                fontSize = 11.sp
+            )
+        }
+    }
+}
+

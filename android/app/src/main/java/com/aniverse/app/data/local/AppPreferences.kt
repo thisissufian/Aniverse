@@ -18,7 +18,16 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_PREFER_DUB, false)
         set(value) = prefs.edit().putBoolean(KEY_PREFER_DUB, value).apply()
 
+    var appMode: String
+        get() = prefs.getString(KEY_APP_MODE, MODE_ANIME) ?: MODE_ANIME
+        set(value) = prefs.edit().putString(KEY_APP_MODE, value).apply()
+
     companion object {
+        const val MODE_ANIME = "anime"
+        const val MODE_KDRAMA = "kdrama"
+        const val MODE_HOLLYWOOD = "hollywood"
+
+        private const val KEY_APP_MODE = "app_mode"
         private const val KEY_AUTO_SKIP = "auto_skip_intro"
         private const val KEY_AUTO_PLAY_NEXT = "auto_play_next"
         private const val KEY_PREFER_DUB = "prefer_dub"

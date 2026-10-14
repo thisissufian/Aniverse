@@ -166,6 +166,7 @@ fun PlayerScreen(
     val dbHelper = remember { AniverseDbHelper.getInstance(context) }
     val appPrefs = remember { AppPreferences.getInstance(context) }
     val resolver = remember { AnikotoResolver() }
+    val tmdbApi = remember { com.aniverse.app.data.remote.TmdbApi.getInstance() }
 
     // State
     var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
@@ -345,6 +346,23 @@ fun PlayerScreen(
             streamError = null
             embedUrl = null
             try {
+                if (appPrefs.appMode != com.aniverse.app.data.local.AppPreferences.MODE_ANIME) {
+                    val mediaType = if (format == "MOVIE") "movie" else "tv"
+                    val serverList = tmdbApi.getMediaStreamServers(
+                        type = mediaType,
+                        id = animeId,
+                        season = 1,
+                        episode = episode.number
+                    )
+                    servers = serverList
+                    val target = preferredServer ?: serverList.first()
+                    selectedServer = target
+                    embedUrl = target.linkId
+                    PipController.isVideoPlaying = true
+                    isLoadingStream = false
+                    return@launch
+                }
+
                 val dataIds = episode.dataIds
                 if (dataIds.isNullOrEmpty()) {
                     streamError = "No stream data available for Episode ${episode.number}"
@@ -399,6 +417,32 @@ fun PlayerScreen(
             isLoadingEpisodes = true
             episodesError = null
             try {
+                if (appPrefs.appMode != com.aniverse.app.data.local.AppPreferences.MODE_ANIME) {
+                    val isMovie = format == "MOVIE"
+                    val list = if (isMovie) {
+                        listOf(Episode(id = "${animeId}_movie", number = 1, title = animeTitle, hasSub = true))
+                    } else {
+                        tmdbApi.getTvSeasonEpisodes(animeId, 1)
+                    }
+                    episodes = list
+                    if (list.isNotEmpty()) {
+                        val history = dbHelper.getWatchHistory().find { it.animeId == animeId }
+                        val initialEp = history?.let { h -> list.find { it.number == h.episodeNumber } } ?: list.first()
+                        currentEpisode = initialEp
+                        selectedChunkIndex = (initialEp.number - 1).coerceAtLeast(0) / chunkSize
+
+                        if (history != null && history.episodeNumber == initialEp.number && history.positionMs > 2000L) {
+                            currentPlayPositionMs = history.positionMs
+                            totalPlayDurationMs = if (history.durationMs > 0) history.durationMs else 1440000L
+                            resumeBannerText = "Resumed at ${com.aniverse.app.util.NowPlayingController.formatTimestamp(history.positionMs)}"
+                        }
+                    } else {
+                        episodesError = "No episodes found for '$animeTitle'."
+                    }
+                    isLoadingEpisodes = false
+                    return@launch
+                }
+
                 val list = resolver.getEpisodes(
                     primaryTitle = animeTitle,
                     secondaryTitle = englishTitle,

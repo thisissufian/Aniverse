@@ -10,10 +10,17 @@ Write-Host "Project Directory: $ProjectDir" -ForegroundColor Cyan
 Write-Host "Gradle User Home:  $env:GRADLE_USER_HOME" -ForegroundColor Cyan
 Write-Host "Android Home:      $env:ANDROID_HOME" -ForegroundColor Cyan
 
+$ReleaseDir = "$ProjectDir\app\build\outputs\apk\release"
+if (Test-Path $ReleaseDir) {
+    Remove-Item "$ReleaseDir\*.apk" -Force -ErrorAction SilentlyContinue
+}
+
 # Run gradle assembleRelease
 & "$PSScriptRoot\gradle-8.7\bin\gradle.bat" :app:assembleRelease --stacktrace
-
-$ReleaseDir = "$ProjectDir\app\build\outputs\apk\release"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "`n[ERROR] Gradle build failed with exit code $LASTEXITCODE" -ForegroundColor Red
+    exit $LASTEXITCODE
+}
 if (Test-Path $ReleaseDir) {
     Write-Host "`n[SUCCESS] Aniverse Release APK(s) built successfully!" -ForegroundColor Green
     $distDir = "F:\cool projects\Aniverse\release\android"
@@ -27,9 +34,11 @@ if (Test-Path $ReleaseDir) {
         Write-Host "  -> $($_.Name) ($sizeMB MB / $sizeBytes bytes) at $($_.FullName)" -ForegroundColor Green
 
         if ($_.Name -like "*arm64*") {
+            Copy-Item $_.FullName (Join-Path $distDir "Aniverse-v2.0.0-arm64.apk") -Force
             Copy-Item $_.FullName (Join-Path $distDir "Aniverse-v1.1.0-arm64.apk") -Force
             Copy-Item $_.FullName (Join-Path $distDir "Aniverse-v1.0.0-arm64.apk") -Force
         } elseif ($_.Name -like "*v7a*") {
+            Copy-Item $_.FullName (Join-Path $distDir "Aniverse-v2.0.0-armv7.apk") -Force
             Copy-Item $_.FullName (Join-Path $distDir "Aniverse-v1.1.0-armv7.apk") -Force
             Copy-Item $_.FullName (Join-Path $distDir "Aniverse-v1.0.0-armv7.apk") -Force
         }

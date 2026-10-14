@@ -10,6 +10,7 @@ import streamRoutes from './routes/streamRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import malRoutes from './routes/malRoutes.js';
 import syncRoutes from './routes/syncRoutes.js';
+import mediaRoutes from './routes/mediaRoutes.js';
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api/stream', streamLimiter, streamRoutes);
 app.use('/api/user', generalLimiter, userRoutes);
 app.use('/api/mal', generalLimiter, malRoutes);
 app.use('/api/sync', generalLimiter, syncRoutes);
+app.use('/api/media', generalLimiter, mediaRoutes);
 
 // Serve static frontend in production/electron
 import fs from 'fs';

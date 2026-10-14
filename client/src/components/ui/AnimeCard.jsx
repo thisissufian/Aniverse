@@ -5,12 +5,14 @@ import WatchlistModal from './WatchlistModal';
 
 export default function AnimeCard({ anime }) {
   const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
-  const title = anime.title?.english || anime.title?.romaji;
-  const eps = anime.latestEpisode || anime.episodes || '?';
-  const format = anime.format || 'TV';
+  const title = anime.title?.english || anime.title?.romaji || anime.name;
+  const isMedia = anime.type === 'movie' || anime.type === 'tv';
+  const eps = anime.latestEpisode || anime.episodes || (isMedia && anime.type === 'movie' ? 'FILM' : 'TV');
+  const format = anime.format || (isMedia ? (anime.type === 'tv' ? 'TV' : 'MOVIE') : 'TV');
+  const targetLink = isMedia ? `/media/${anime.type}/${anime.id}` : `/watch/${anime.id}`;
 
   return (
-    <Link to={`/watch/${anime.id}`} className="group flex flex-col gap-2 w-full">
+    <Link to={targetLink} className="group flex flex-col gap-2 w-full">
       <div className="relative aspect-[2/3] rounded overflow-hidden bg-[#13131a] border border-white/5 shadow-md">
         <img
           src={anime.coverImage?.extraLarge || anime.coverImage?.large}
@@ -63,7 +65,7 @@ export default function AnimeCard({ anime }) {
           {title}
         </h3>
         <span className="text-gray-400 text-xs font-inter mt-0.5">
-          {anime.seasonYear ? `${anime.seasonYear} • ` : ''}{anime.status?.toLowerCase().replace('_', ' ') || ''}
+          {anime.year || anime.seasonYear ? `${anime.year || anime.seasonYear} • ` : ''}{anime.status?.toLowerCase().replace('_', ' ') || ''}
         </span>
       </div>
       

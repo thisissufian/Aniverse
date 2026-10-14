@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Save, Download, Upload, User, Trash2, Cloud, RefreshCw, LogOut, CheckCircle } from 'lucide-react';
+import { Settings, Save, Download, Upload, User, Trash2, Cloud, RefreshCw, LogOut, CheckCircle, Tv, Film, Sparkles, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import syncManager from '../services/syncManager';
+import { useMode, MODES, MODE_CONFIG } from '../context/ModeContext';
 
 export default function Profile() {
+  const { mode, setMode } = useMode();
   const fileInputRef = useRef(null);
   const [preferences, setPreferences] = useState({
     autoSkipIntro: localStorage.getItem('autoSkip') === 'true',
@@ -187,6 +189,107 @@ export default function Profile() {
         <div>
           <h1 className="text-3xl font-bold text-white">Local Profile</h1>
           <p className="text-gray-400 mt-1">Data saved entirely on your device</p>
+        </div>
+      </div>
+
+      {/* Entertainment Mode Switcher Card */}
+      <div className="bg-[#1a1a2e] border border-[#2D2D44] rounded-2xl p-6 md:p-8 mb-8 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Sparkles size={20} className="text-[#8B5CF6]" />
+              Entertainment Mode Choice
+            </h2>
+            <p className="text-gray-400 text-xs mt-1">
+              Switching modes instantly updates your Home catalog, Search filters, and Watch History to that category.
+            </p>
+          </div>
+          <span className="text-xs font-bold text-[#A78BFA] bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 px-3 py-1 rounded-full self-start sm:self-auto">
+            Active: {MODE_CONFIG[mode]?.name}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+          {/* 1. Anime Mode */}
+          <div
+            onClick={() => {
+              setMode(MODES.ANIME);
+              toast.success('Switched to Anime Universe mode!');
+            }}
+            className={`cursor-pointer rounded-xl p-4 border transition-all flex flex-col justify-between ${
+              mode === MODES.ANIME
+                ? 'bg-[#8B5CF6]/15 border-[#8B5CF6] shadow-lg shadow-[#8B5CF6]/20'
+                : 'bg-[#13131a] border-[#26263A] hover:border-gray-500'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-9 h-9 rounded-lg bg-[#8B5CF6]/20 flex items-center justify-center text-[#8B5CF6]">
+                  <Sparkles size={18} />
+                </div>
+                {mode === MODES.ANIME && <Check size={18} className="text-[#8B5CF6]" />}
+              </div>
+              <h3 className="text-white font-bold text-sm">Anime</h3>
+              <p className="text-gray-400 text-xs mt-1 leading-relaxed">
+                AniList catalog, sub/dub Japanese anime, top airing broadcasts, and Donghua.
+              </p>
+            </div>
+            <div className="mt-3 text-[11px] font-semibold text-[#8B5CF6]">AniList + MegaPlay</div>
+          </div>
+
+          {/* 2. KDrama & Movies Mode */}
+          <div
+            onClick={() => {
+              setMode(MODES.KDRAMA);
+              toast.success('Switched to K-Drama & Movies mode!');
+            }}
+            className={`cursor-pointer rounded-xl p-4 border transition-all flex flex-col justify-between ${
+              mode === MODES.KDRAMA
+                ? 'bg-[#EC4899]/15 border-[#EC4899] shadow-lg shadow-[#EC4899]/20'
+                : 'bg-[#13131a] border-[#26263A] hover:border-gray-500'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-9 h-9 rounded-lg bg-[#EC4899]/20 flex items-center justify-center text-[#EC4899]">
+                  <Tv size={18} />
+                </div>
+                {mode === MODES.KDRAMA && <Check size={18} className="text-[#EC4899]" />}
+              </div>
+              <h3 className="text-white font-bold text-sm">K-Drama & Movies</h3>
+              <p className="text-gray-400 text-xs mt-1 leading-relaxed">
+                Korean drama series, romantic comedies, thrillers, and award-winning Korean cinema.
+              </p>
+            </div>
+            <div className="mt-3 text-[11px] font-semibold text-[#EC4899]">TMDB Korean + Multi-Server</div>
+          </div>
+
+          {/* 3. Hollywood & TV Series Mode */}
+          <div
+            onClick={() => {
+              setMode(MODES.HOLLYWOOD);
+              toast.success('Switched to Hollywood & Series mode!');
+            }}
+            className={`cursor-pointer rounded-xl p-4 border transition-all flex flex-col justify-between ${
+              mode === MODES.HOLLYWOOD
+                ? 'bg-[#06B6D4]/15 border-[#06B6D4] shadow-lg shadow-[#06B6D4]/20'
+                : 'bg-[#13131a] border-[#26263A] hover:border-gray-500'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-9 h-9 rounded-lg bg-[#06B6D4]/20 flex items-center justify-center text-[#06B6D4]">
+                  <Film size={18} />
+                </div>
+                {mode === MODES.HOLLYWOOD && <Check size={18} className="text-[#06B6D4]" />}
+              </div>
+              <h3 className="text-white font-bold text-sm">Hollywood & Series</h3>
+              <p className="text-gray-400 text-xs mt-1 leading-relaxed">
+                Hollywood blockbusters, trending TV series, top-rated movies, and global releases.
+              </p>
+            </div>
+            <div className="mt-3 text-[11px] font-semibold text-[#06B6D4]">TMDB Global + Multi-Server</div>
+          </div>
         </div>
       </div>
 

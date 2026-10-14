@@ -16,5 +16,7 @@ data class Anime(
     val subCount: Int? = null,
     val dubCount: Int? = null,
     val isDonghua: Boolean = false,
-    val seasonYear: Int? = null
+    val seasonYear: Int? = null,
+    val mediaType: String? = null,
+    val mode: String? = null
 )

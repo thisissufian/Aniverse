@@ -50,6 +50,10 @@ fun SearchScreen(
     var results by remember { mutableStateOf<List<Anime>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val appPrefs = remember { com.aniverse.app.data.local.AppPreferences.getInstance(context) }
+    val tmdbApi = remember { com.aniverse.app.data.remote.TmdbApi.getInstance() }
+
     val scope = rememberCoroutineScope()
     val api = remember { AniListApi() }
     var searchJob by remember { mutableStateOf<Job?>(null) }
@@ -98,17 +102,32 @@ fun SearchScreen(
         searchJob = scope.launch {
             isSearching = true
             try {
-                val list = api.searchAnime(
-                    keyword = query.trim().takeIf { it.isNotEmpty() },
-                    genres = selectedGenres.toList(),
-                    status = selectedStatus.takeIf { it != "ALL" },
-                    seasonYear = selectedYear,
-                    format = selectedFormat.takeIf { it != "ALL" },
-                    isDonghua = isDonghuaFilter,
-                    page = 1,
-                    perPage = 30
-                )
-                results = list
+                if (appPrefs.appMode == com.aniverse.app.data.local.AppPreferences.MODE_ANIME) {
+                    val list = api.searchAnime(
+                        keyword = query.trim().takeIf { it.isNotEmpty() },
+                        genres = selectedGenres.toList(),
+                        status = selectedStatus.takeIf { it != "ALL" },
+                        seasonYear = selectedYear,
+                        format = selectedFormat.takeIf { it != "ALL" },
+                        isDonghua = isDonghuaFilter,
+                        page = 1,
+                        perPage = 30
+                    )
+                    results = list
+                } else {
+                    val type = when (selectedFormat) {
+                        "MOVIE" -> "movie"
+                        "TV" -> "tv"
+                        else -> "all"
+                    }
+                    val list = tmdbApi.searchMedia(
+                        mode = appPrefs.appMode,
+                        query = query.trim(),
+                        type = type,
+                        page = 1
+                    )
+                    results = list
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -117,11 +136,9 @@ fun SearchScreen(
         }
     }
 
-    // Initial load: show trending/popular anime on screen launch
-    LaunchedEffect(Unit) {
-        if (results.isEmpty()) {
-            executeSearch()
-        }
+    // Initial load & mode change: reload search/discovery
+    LaunchedEffect(appPrefs.appMode) {
+        executeSearch()
     }
 
     Column(
@@ -154,7 +171,12 @@ fun SearchScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(DarkSurface),
                 placeholder = {
-                    Text("Search anime, movies, series...", color = TextMuted, fontSize = 14.sp)
+                    val hint = when (appPrefs.appMode) {
+                        com.aniverse.app.data.local.AppPreferences.MODE_KDRAMA -> "Search K-Dramas, Korean movies..."
+                        com.aniverse.app.data.local.AppPreferences.MODE_HOLLYWOOD -> "Search Hollywood movies, series..."
+                        else -> "Search anime, movies, series..."
+                    }
+                    Text(hint, color = TextMuted, fontSize = 14.sp)
                 },
                 leadingIcon = {
                     Icon(Icons.Filled.Search, contentDescription = null, tint = PrimaryViolet)
@@ -219,22 +241,24 @@ fun SearchScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // All vs Chinese Donghua switch
-            item {
-                FilterChip(
-                    selected = isDonghuaFilter,
-                    onClick = {
-                        isDonghuaFilter = !isDonghuaFilter
-                        executeSearch()
-                    },
-                    label = { Text("Chinese Donghua", fontSize = 12.sp) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AccentCyan,
-                        selectedLabelColor = Color.White,
-                        containerColor = DarkSurface,
-                        labelColor = TextSecondary
+            // All vs Chinese Donghua switch (only for Anime mode)
+            if (appPrefs.appMode == com.aniverse.app.data.local.AppPreferences.MODE_ANIME) {
+                item {
+                    FilterChip(
+                        selected = isDonghuaFilter,
+                        onClick = {
+                            isDonghuaFilter = !isDonghuaFilter
+                            executeSearch()
+                        },
+                        label = { Text("Chinese Donghua", fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentCyan,
+                            selectedLabelColor = Color.White,
+                            containerColor = DarkSurface,
+                            labelColor = TextSecondary
+                        )
                     )
-                )
+                }
             }
 
             // Quick Status Chips

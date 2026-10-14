@@ -65,4 +65,12 @@ const Sync = {
   uploadGoogleSync: (syncData) => api.post('/sync/google/upload', { syncData }),
 };
 
-export default { Auth, Anime, Stream, User, MAL, Sync };
+const Media = {
+  getHome: (mode) => api.get('/media/home', { params: { mode } }),
+  search: (params) => api.get('/media/search', { params }),
+  getDetail: (type, id) => api.get(`/media/detail/${type}/${id}`),
+  getEpisodes: (id, season = 1) => api.get(`/media/tv/${id}/episodes`, { params: { season } }),
+  getStream: (type, id, season = 1, episode = 1) => api.get(`/media/stream/${type}/${id}`, { params: { season, episode } }),
+};
+
+export default { Auth, Anime, Stream, User, MAL, Sync, Media };
