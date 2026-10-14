@@ -111,6 +111,31 @@ function createWindow() {
   });
 }
 
+// Intercept all child and subframe webContents to prevent popup windows from player ads
+app.on('web-contents-created', (event, contents) => {
+  contents.setWindowOpenHandler((details) => {
+    console.log('Blocked child webContents popup to:', details.url);
+    return { action: 'deny' };
+  });
+  contents.on('will-navigate', (event, navUrl) => {
+    const lower = navUrl.toLowerCase();
+    if (!lower.startsWith('http://localhost') &&
+        !lower.includes('myanimelist.net') &&
+        !lower.includes('accounts.google.com') &&
+        !lower.includes('vidlink.pro') &&
+        !lower.includes('multiembed.mov') &&
+        !lower.includes('streamingnow.mov') &&
+        !lower.includes('autoembed.co') &&
+        !lower.includes('2embed.cc') &&
+        !lower.includes('vidsrc') &&
+        !lower.includes('megaplay.buzz') &&
+        !lower.includes('anikototv.to')) {
+      event.preventDefault();
+      console.log('Blocked child frame navigation to:', navUrl);
+    }
+  });
+});
+
 app.whenReady().then(async () => {
   // Fix cross-origin headers so MegaPlay embeds work inside Electron
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {

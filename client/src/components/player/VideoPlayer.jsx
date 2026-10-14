@@ -112,8 +112,6 @@ export default function VideoPlayer({ url, poster, title, thumbnails, isEmbed, s
         src={url} 
         allowFullScreen 
         allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-        sandbox="allow-scripts allow-same-origin allow-forms"
-        referrerPolicy="no-referrer-when-downgrade"
         className="w-full h-full border-none bg-black"
         title={title || "Video Player"}
         onLoad={() => {

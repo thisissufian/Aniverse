@@ -10,6 +10,7 @@ import android.util.Rational
 import android.view.OrientationEventListener
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -287,8 +288,33 @@ fun PlayerScreen(
             activity?.let { act ->
                 act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                 WindowCompat.getInsetsController(act.window, act.window.decorView).show(WindowInsetsCompat.Type.systemBars())
+                val lp = act.window.attributes
+                lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                act.window.attributes = lp
             }
             exoPlayer.release()
+        }
+    }
+
+    var playerCustomBrightness by remember { mutableFloatStateOf(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE) }
+
+    // Synchronize screen brightness: player brightness applies ONLY when expanded in player screen
+    DisposableEffect(isMinimized, PipController.isInPipMode, playerCustomBrightness) {
+        activity?.window?.let { window ->
+            val lp = window.attributes
+            if (!isMinimized && !PipController.isInPipMode && playerCustomBrightness >= 0.05f) {
+                lp.screenBrightness = playerCustomBrightness
+            } else {
+                lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            }
+            window.attributes = lp
+        }
+        onDispose {
+            activity?.window?.let { window ->
+                val lp = window.attributes
+                lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                window.attributes = lp
+            }
         }
     }
 
@@ -632,8 +658,13 @@ fun PlayerScreen(
                                         if (x < screenWidth / 2) {
                                             activity?.window?.let { window ->
                                                 val lp = window.attributes
-                                                var currentBrightness = if (lp.screenBrightness < 0) 0.5f else lp.screenBrightness
+                                                var currentBrightness = if (playerCustomBrightness < 0f) {
+                                                    if (lp.screenBrightness < 0f) 0.5f else lp.screenBrightness
+                                                } else {
+                                                    playerCustomBrightness
+                                                }
                                                 currentBrightness = (currentBrightness - (dragAmount / 800f)).coerceIn(0.05f, 1.0f)
+                                                playerCustomBrightness = currentBrightness
                                                 lp.screenBrightness = currentBrightness
                                                 window.attributes = lp
                                                 brightnessFeedback = currentBrightness
@@ -850,19 +881,30 @@ fun PlayerScreen(
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                                     val url = request?.url?.toString() ?: return false
-                                    val isAllowedStream = url.contains("megaplay") || 
-                                                          url.contains("anikoto") || 
-                                                          url.contains("tcdn") || 
-                                                          url.contains("bcdn") || 
-                                                          url.contains("stream") ||
-                                                          url.contains("vidlink.pro") ||
-                                                          url.contains("vidsrc") ||
-                                                          url.contains("multiembed.mov") ||
-                                                          url.contains("autoembed") ||
-                                                          url.contains("2embed")
-                                    if (isAllowedStream) {
+
+                                    // Subframe / nested iframe / video / CDN chunk requests must never be blocked!
+                                    if (request != null && !request.isForMainFrame) {
                                         return false
                                     }
+
+                                    val lower = url.lowercase()
+                                    if (lower.startsWith("intent:") || lower.startsWith("market:") || lower.contains("play.google.com")) {
+                                        return true
+                                    }
+
+                                    if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+                                        return true
+                                    }
+
+                                    val isStreamHost = lower.contains("vidlink.pro") || lower.contains("multiembed") ||
+                                                       lower.contains("vidsrc") || lower.contains("autoembed") ||
+                                                       lower.contains("2embed") || lower.contains("megaplay") ||
+                                                       lower.contains("anikoto") || lower.contains("streamingnow.mov")
+                                    if (isStreamHost) {
+                                        return false
+                                    }
+
+                                    // Block third-party ad sites trying to hijack the main player window
                                     return true
                                 }
 
@@ -911,7 +953,11 @@ fun PlayerScreen(
 
                             lastLoadedEmbedUrl = embedUrl
                             val baseUrl = if (embedUrl?.contains("anikoto") == true || embedUrl?.contains("megaplay") == true) "https://anikototv.to/" else "https://vidlink.pro/"
-                            loadDataWithBaseURL(baseUrl, embedHtml, "text/html", "UTF-8", null)
+                            if (appPrefs.appMode != com.aniverse.app.data.local.AppPreferences.MODE_ANIME) {
+                                loadUrl(embedUrl ?: "about:blank")
+                            } else {
+                                loadDataWithBaseURL(baseUrl, embedHtml, "text/html", "UTF-8", null)
+                            }
                             webViewInstance = this
                         }
                     },
@@ -920,7 +966,11 @@ fun PlayerScreen(
                         if (lastLoadedEmbedUrl != embedUrl && !embedUrl.isNullOrEmpty()) {
                             lastLoadedEmbedUrl = embedUrl
                             val baseUrl = if (embedUrl?.contains("anikoto") == true || embedUrl?.contains("megaplay") == true) "https://anikototv.to/" else "https://vidlink.pro/"
-                            webView.loadDataWithBaseURL(baseUrl, embedHtml, "text/html", "UTF-8", null)
+                            if (appPrefs.appMode != com.aniverse.app.data.local.AppPreferences.MODE_ANIME) {
+                                webView.loadUrl(embedUrl ?: "about:blank")
+                            } else {
+                                webView.loadDataWithBaseURL(baseUrl, embedHtml, "text/html", "UTF-8", null)
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxSize()

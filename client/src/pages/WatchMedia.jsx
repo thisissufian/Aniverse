@@ -84,6 +84,22 @@ export default function WatchMedia() {
           }
 
           localStorage.setItem('aniverse_history', JSON.stringify(history.slice(0, 100)));
+
+          // Set Now Playing for Spotify-like mini player bar
+          localStorage.setItem('aniverse_now_playing', JSON.stringify({
+            animeId: itemKey,
+            id,
+            mediaType: type,
+            mode: mode,
+            episodeNumber: isTv ? currentEpisode : 1,
+            seasonNumber: isTv ? currentSeason : 1,
+            title: titleText,
+            coverImage: coverUrl,
+            time: resumeTimeParam ? parseInt(resumeTimeParam, 10) : 0,
+            duration: (mediaData.runtime || 120) * 60,
+            isPlaying: true,
+          }));
+          window.dispatchEvent(new Event('aniverse_now_playing_update'));
         } catch (e) {
           console.error('Failed to save media history:', e);
         }
@@ -143,7 +159,7 @@ export default function WatchMedia() {
               <VideoPlayer
                 url={embedUrl}
                 isEmbed={true}
-                initialTime={resumeTimeParam ? parseInt(resumeTimeParam, 10) : 0}
+                startTime={resumeTimeParam ? parseInt(resumeTimeParam, 10) : 0}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400">

@@ -28,15 +28,7 @@ export const getMediaStreamingSources = ({ type, id, season = 1, episode = 1 }) 
         : `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season}&e=${episode}`,
     },
     {
-      name: 'HD-3 (VidSrc)',
-      server: 'vidsrc-me',
-      type: 'sub',
-      url: isMovie
-        ? `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`
-        : `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
-    },
-    {
-      name: 'HD-4 (AutoEmbed)',
+      name: 'HD-3 (AutoEmbed)',
       server: 'autoembed',
       type: 'sub',
       url: isMovie
@@ -44,12 +36,20 @@ export const getMediaStreamingSources = ({ type, id, season = 1, episode = 1 }) 
         : `https://autoembed.co/tv/tmdb/${tmdbId}-${season}-${episode}`,
     },
     {
-      name: 'HD-5 (2Embed)',
+      name: 'HD-4 (2Embed)',
       server: '2embed',
       type: 'sub',
       url: isMovie
         ? `https://www.2embed.cc/embed/${tmdbId}`
         : `https://www.2embed.cc/embedtv/${tmdbId}&s=${season}&e=${episode}`,
+    },
+    {
+      name: 'HD-5 (VidSrc)',
+      server: 'vidsrc-pm',
+      type: 'sub',
+      url: isMovie
+        ? `https://vidsrc.pm/embed/movie?tmdb=${tmdbId}`
+        : `https://vidsrc.pm/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
     },
   ];
 

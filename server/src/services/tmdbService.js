@@ -12,14 +12,15 @@ const client = axios.create({
   baseURL: BASE_URL,
   params: {
     api_key: TMDB_API_KEY,
+    language: 'en-US',
   },
   timeout: 10000,
 });
 
 const formatMedia = (item, mediaType = null) => {
   const type = mediaType || item.media_type || (item.first_air_date ? 'tv' : 'movie');
-  const title = item.title || item.name || item.original_title || item.original_name || 'Untitled';
-  const originalTitle = item.original_title || item.original_name || title;
+  const englishName = item.title || item.name || 'Untitled';
+  const nativeName = item.original_title || item.original_name || englishName;
   const releaseDate = item.release_date || item.first_air_date || '';
   const year = releaseDate ? new Date(releaseDate).getFullYear() : null;
 
@@ -28,11 +29,11 @@ const formatMedia = (item, mediaType = null) => {
     tmdbId: item.id,
     type, // 'movie' or 'tv'
     title: {
-      english: title,
-      romaji: originalTitle,
-      native: originalTitle,
+      english: englishName,
+      romaji: englishName,
+      native: nativeName,
     },
-    name: title,
+    name: englishName,
     overview: item.overview || '',
     coverImage: {
       extraLarge: item.poster_path ? `${IMAGE_BASE_URL}${item.poster_path}` : null,

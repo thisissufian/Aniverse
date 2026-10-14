@@ -44,12 +44,11 @@ class TmdbApi(
     private fun parseMediaItem(obj: JsonObject, defaultType: String? = null, mode: String? = null): Anime {
         val id = obj.get("id")?.asInt ?: 0
         val type = defaultType ?: obj.get("media_type")?.asString ?: if (obj.has("first_air_date")) "tv" else "movie"
-        val title = obj.get("title")?.asString 
+        val englishTitle = obj.get("title")?.asString 
             ?: obj.get("name")?.asString 
             ?: obj.get("original_title")?.asString 
             ?: obj.get("original_name")?.asString 
             ?: "Untitled"
-        val originalTitle = obj.get("original_title")?.asString ?: obj.get("original_name")?.asString
 
         val posterPath = obj.get("poster_path")?.let { if (!it.isJsonNull) it.asString else null }
         val backdropPath = obj.get("backdrop_path")?.let { if (!it.isJsonNull) it.asString else null }
@@ -59,8 +58,8 @@ class TmdbApi(
 
         return Anime(
             id = id,
-            title = title,
-            englishTitle = originalTitle,
+            title = englishTitle,
+            englishTitle = englishTitle,
             coverImage = if (posterPath != null) "$imageBaseUrl$posterPath" else "",
             bannerImage = if (backdropPath != null) "$backdropBaseUrl$backdropPath" else null,
             description = obj.get("overview")?.asString,
@@ -74,9 +73,9 @@ class TmdbApi(
 
     suspend fun getKDramaHome(): Map<String, List<Anime>> = withContext(Dispatchers.IO) {
         val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
-        val trendingUrl = "$baseUrl/discover/tv?api_key=$apiKey&with_original_language=ko&sort_by=popularity.desc&without_genres=10764,10767,10763&with_genres=18&first_air_date.lte=$today&vote_count.gte=15"
-        val moviesUrl = "$baseUrl/discover/movie?api_key=$apiKey&with_original_language=ko&sort_by=popularity.desc&primary_release_date.lte=$today&vote_count.gte=10"
-        val topRatedUrl = "$baseUrl/discover/tv?api_key=$apiKey&with_original_language=ko&sort_by=vote_average.desc&without_genres=10764,10767,10763&with_genres=18&first_air_date.lte=$today&vote_count.gte=80"
+        val trendingUrl = "$baseUrl/discover/tv?api_key=$apiKey&language=en-US&with_original_language=ko&sort_by=popularity.desc&without_genres=10764,10767,10763&with_genres=18&first_air_date.lte=$today&vote_count.gte=15"
+        val moviesUrl = "$baseUrl/discover/movie?api_key=$apiKey&language=en-US&with_original_language=ko&sort_by=popularity.desc&primary_release_date.lte=$today&vote_count.gte=10"
+        val topRatedUrl = "$baseUrl/discover/tv?api_key=$apiKey&language=en-US&with_original_language=ko&sort_by=vote_average.desc&without_genres=10764,10767,10763&with_genres=18&first_air_date.lte=$today&vote_count.gte=80"
 
         val trendingJson = getJson(trendingUrl)
         val moviesJson = getJson(moviesUrl)
@@ -101,9 +100,9 @@ class TmdbApi(
 
     suspend fun getHollywoodHome(): Map<String, List<Anime>> = withContext(Dispatchers.IO) {
         val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
-        val trendingUrl = "$baseUrl/trending/all/week?api_key=$apiKey"
-        val moviesUrl = "$baseUrl/discover/movie?api_key=$apiKey&sort_by=popularity.desc&primary_release_date.lte=$today&vote_count.gte=40"
-        val tvUrl = "$baseUrl/discover/tv?api_key=$apiKey&sort_by=popularity.desc&without_genres=10764,10767,10763&first_air_date.lte=$today&vote_count.gte=50"
+        val trendingUrl = "$baseUrl/trending/all/week?api_key=$apiKey&language=en-US"
+        val moviesUrl = "$baseUrl/discover/movie?api_key=$apiKey&language=en-US&sort_by=popularity.desc&primary_release_date.lte=$today&vote_count.gte=40"
+        val tvUrl = "$baseUrl/discover/tv?api_key=$apiKey&language=en-US&sort_by=popularity.desc&without_genres=10764,10767,10763&first_air_date.lte=$today&vote_count.gte=50"
 
         val trendingJson = getJson(trendingUrl)
         val moviesJson = getJson(moviesUrl)
@@ -137,16 +136,15 @@ class TmdbApi(
     }
 
     suspend fun searchMedia(mode: String, query: String, type: String = "all", page: Int = 1): List<Anime> = withContext(Dispatchers.IO) {
-        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
         val endpoint = if (query.isNotBlank()) {
             when (type) {
-                "movie" -> "$baseUrl/search/movie?api_key=$apiKey&query=$query&page=$page&include_adult=false"
-                "tv" -> "$baseUrl/search/tv?api_key=$apiKey&query=$query&page=$page&include_adult=false"
-                else -> "$baseUrl/search/multi?api_key=$apiKey&query=$query&page=$page&include_adult=false"
+                "movie" -> "$baseUrl/search/movie?api_key=$apiKey&language=en-US&query=$query&page=$page&include_adult=false"
+                "tv" -> "$baseUrl/search/tv?api_key=$apiKey&language=en-US&query=$query&page=$page&include_adult=false"
+                else -> "$baseUrl/search/multi?api_key=$apiKey&language=en-US&query=$query&page=$page&include_adult=false"
             }
         } else {
             val discType = if (type == "movie") "movie" else "tv"
-            var url = "$baseUrl/discover/$discType?api_key=$apiKey&sort_by=popularity.desc&page=$page"
+            var url = "$baseUrl/discover/$discType?api_key=$apiKey&language=en-US&sort_by=popularity.desc&page=$page"
             if (discType == "tv") url += "&without_genres=10764,10767,10763"
             if (mode == "kdrama") url += "&with_original_language=ko&with_genres=18"
             url
@@ -168,7 +166,7 @@ class TmdbApi(
     }
 
     suspend fun getTvSeasonEpisodes(tvId: Int, season: Int = 1): List<Episode> = withContext(Dispatchers.IO) {
-        val url = "$baseUrl/tv/$tvId/season/$season?api_key=$apiKey"
+        val url = "$baseUrl/tv/$tvId/season/$season?api_key=$apiKey&language=en-US"
         val json = getJson(url) ?: return@withContext emptyList()
         val episodes = json.getAsJsonArray("episodes") ?: return@withContext emptyList()
 
@@ -204,22 +202,22 @@ class TmdbApi(
                 serverId = "multiembed"
             ),
             ServerItem(
-                name = "HD-3 (VidSrc)",
-                linkId = if (isMovie) "https://vidsrc.me/embed/movie?tmdb=$id" else "https://vidsrc.me/embed/tv?tmdb=$id&season=$season&episode=$episode",
-                type = "sub",
-                serverId = "vidsrc-me"
-            ),
-            ServerItem(
-                name = "HD-4 (AutoEmbed)",
+                name = "HD-3 (AutoEmbed)",
                 linkId = if (isMovie) "https://autoembed.co/movie/tmdb/$id" else "https://autoembed.co/tv/tmdb/$id-$season-$episode",
                 type = "sub",
                 serverId = "autoembed"
             ),
             ServerItem(
-                name = "HD-5 (2Embed)",
+                name = "HD-4 (2Embed)",
                 linkId = if (isMovie) "https://www.2embed.cc/embed/$id" else "https://www.2embed.cc/embedtv/$id&s=$season&e=$episode",
                 type = "sub",
                 serverId = "2embed"
+            ),
+            ServerItem(
+                name = "HD-5 (VidSrc)",
+                linkId = if (isMovie) "https://vidsrc.pm/embed/movie?tmdb=$id" else "https://vidsrc.pm/embed/tv?tmdb=$id&season=$season&episode=$episode",
+                type = "sub",
+                serverId = "vidsrc-pm"
             )
         )
     }

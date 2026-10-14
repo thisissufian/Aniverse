@@ -34,7 +34,7 @@ export default function NowPlayingBar() {
   }, []);
 
   // Hide when on watch page or when no active playback
-  if (!nowPlaying || location.pathname.startsWith('/watch')) {
+  if (!nowPlaying || location.pathname.startsWith('/watch') || location.pathname.startsWith('/watch-media')) {
     return null;
   }
 
@@ -48,7 +48,15 @@ export default function NowPlayingBar() {
   const progress = nowPlaying.duration ? Math.min(100, Math.round(((nowPlaying.time || 0) / nowPlaying.duration) * 100)) : 0;
 
   const handleBarClick = () => {
-    navigate(`/watch/${nowPlaying.animeId}/${nowPlaying.episodeId || ''}?t=${nowPlaying.time || 0}`);
+    if (nowPlaying.mediaType || nowPlaying.mode === 'kdrama' || nowPlaying.mode === 'hollywood') {
+      const type = nowPlaying.mediaType || 'tv';
+      const id = nowPlaying.id || nowPlaying.animeId;
+      const s = nowPlaying.seasonNumber || 1;
+      const ep = nowPlaying.episodeNumber || 1;
+      navigate(`/watch-media/${type}/${id}/${s}/${ep}?t=${nowPlaying.time || 0}`);
+    } else {
+      navigate(`/watch/${nowPlaying.animeId}/${nowPlaying.episodeId || ''}?t=${nowPlaying.time || 0}`);
+    }
   };
 
   const handleDismiss = (e) => {
