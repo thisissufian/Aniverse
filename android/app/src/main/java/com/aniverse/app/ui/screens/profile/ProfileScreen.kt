@@ -17,15 +17,20 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import com.aniverse.app.data.local.AppPreferences
 import com.aniverse.app.ui.theme.*
 
 @Composable
 fun ProfileScreen(
     modifier: Modifier = Modifier
 ) {
-    var autoSkipIntro by remember { mutableStateOf(true) }
-    var autoPlayNext by remember { mutableStateOf(true) }
-    var preferDub by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val appPrefs = remember { AppPreferences.getInstance(context) }
+
+    var autoSkipIntro by remember { mutableStateOf(appPrefs.autoSkipIntro) }
+    var autoPlayNext by remember { mutableStateOf(appPrefs.autoPlayNext) }
+    var preferDub by remember { mutableStateOf(appPrefs.preferDub) }
 
     Column(
         modifier = modifier
@@ -67,7 +72,10 @@ fun ProfileScreen(
                     title = "Auto-Skip Intro & Outro",
                     subtitle = "Instantly skips OP & ED when timestamps are detected",
                     checked = autoSkipIntro,
-                    onCheckedChange = { autoSkipIntro = it }
+                    onCheckedChange = {
+                        autoSkipIntro = it
+                        appPrefs.autoSkipIntro = it
+                    }
                 )
 
                 HorizontalDivider(color = DarkBorder, modifier = Modifier.padding(vertical = 12.dp))
@@ -77,7 +85,10 @@ fun ProfileScreen(
                     title = "Auto-Play Next Episode",
                     subtitle = "Seamless binge-watching without touching the screen",
                     checked = autoPlayNext,
-                    onCheckedChange = { autoPlayNext = it }
+                    onCheckedChange = {
+                        autoPlayNext = it
+                        appPrefs.autoPlayNext = it
+                    }
                 )
 
                 HorizontalDivider(color = DarkBorder, modifier = Modifier.padding(vertical = 12.dp))
@@ -87,8 +98,81 @@ fun ProfileScreen(
                     title = "Prefer English Dub",
                     subtitle = "Default to English audio when available",
                     checked = preferDub,
-                    onCheckedChange = { preferDub = it }
+                    onCheckedChange = {
+                        preferDub = it
+                        appPrefs.preferDub = it
+                    }
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Cloud Sync Card
+        Text(
+            text = "CLOUD SYNC (CROSS-DEVICE)",
+            color = PrimaryViolet,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AccentCyan.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CloudSync,
+                            contentDescription = null,
+                            tint = AccentCyan
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Google Drive Sync",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Sync exact seconds, watch history & watchlists with Desktop",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(PrimaryViolet.copy(alpha = 0.2f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "ACTIVE PLAN",
+                            color = PrimaryViolet,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
 

@@ -205,4 +205,78 @@ class AniverseDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NA
         }
         list
     }
+
+    suspend fun exportSyncPayload(): SyncPayload = withContext(Dispatchers.IO) {
+        SyncPayload(
+            history = getWatchHistory(),
+            watchlist = getWatchlist()
+        )
+    }
+
+    suspend fun importSyncPayload(payload: SyncPayload): Int = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        var importedCount = 0
+        db.beginTransaction()
+        try {
+            // Import History with LWW (Last-Write-Wins based on updatedAt)
+            for (item in payload.history) {
+                val cursor = db.query(
+                    TABLE_HISTORY,
+                    arrayOf(COL_UPDATED_AT),
+                    "$COL_ANIME_ID = ?",
+                    arrayOf(item.animeId.toString()),
+                    null, null, null
+                )
+                var shouldUpdate = true
+                cursor.use {
+                    if (it.moveToFirst()) {
+                        val localUpdated = it.getLong(0)
+                        if (item.updatedAt <= localUpdated) {
+                            shouldUpdate = false
+                        }
+                    }
+                }
+                if (shouldUpdate) {
+                    val values = ContentValues().apply {
+                        put(COL_ANIME_ID, item.animeId)
+                        put(COL_TITLE, item.title)
+                        put(COL_COVER_URL, item.coverUrl)
+                        put(COL_EPISODE_NUM, item.episodeNumber)
+                        put(COL_POSITION_MS, item.positionMs)
+                        put(COL_DURATION_MS, item.durationMs)
+                        put(COL_UPDATED_AT, item.updatedAt)
+                    }
+                    db.insertWithOnConflict(TABLE_HISTORY, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+                    importedCount++
+                }
+            }
+
+            // Import Watchlist
+            for (item in payload.watchlist) {
+                val values = ContentValues().apply {
+                    put(COL_ANIME_ID, item.animeId)
+                    put(COL_TITLE, item.title)
+                    put(COL_COVER_URL, item.coverUrl)
+                    put(COL_SCORE, item.score)
+                    put(COL_FORMAT, item.format)
+                    put(COL_ADDED_AT, item.addedAt)
+                }
+                db.insertWithOnConflict(TABLE_WATCHLIST, null, values, SQLiteDatabase.CONFLICT_IGNORE)
+                importedCount++
+            }
+
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        importedCount
+    }
 }
+
+data class SyncPayload(
+    val version: Int = 1,
+    val client: String = "android",
+    val syncedAt: Long = System.currentTimeMillis(),
+    val history: List<WatchHistoryItem>,
+    val watchlist: List<WatchlistItem>
+)

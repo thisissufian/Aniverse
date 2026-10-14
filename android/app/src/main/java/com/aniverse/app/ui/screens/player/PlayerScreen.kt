@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,6 +47,8 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.aniverse.app.data.local.AniverseDbHelper
+import com.aniverse.app.data.local.AppPreferences
+import com.aniverse.app.data.model.Anime
 import com.aniverse.app.data.model.Episode
 import com.aniverse.app.data.model.ServerItem
 import com.aniverse.app.data.model.SkipInterval
@@ -66,6 +69,7 @@ fun PlayerScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val dbHelper = remember { AniverseDbHelper.getInstance(context) }
+    val appPrefs = remember { AppPreferences.getInstance(context) }
     val resolver = remember { AnikotoResolver() }
 
     // State
@@ -73,7 +77,16 @@ fun PlayerScreen(
     var currentEpisode by remember { mutableStateOf<Episode?>(null) }
     var servers by remember { mutableStateOf<List<ServerItem>>(emptyList()) }
     var selectedServer by remember { mutableStateOf<ServerItem?>(null) }
-    var activeAudioTab by remember { mutableStateOf("sub") }
+    var activeAudioTab by remember { mutableStateOf(if (appPrefs.preferDub) "dub" else "sub") }
+    var isBookmarked by remember { mutableStateOf(false) }
+
+    LaunchedEffect(animeId) {
+        isBookmarked = dbHelper.isInWatchlist(animeId)
+    }
+
+    val currentEpIndex = episodes.indexOfFirst { it.number == currentEpisode?.number }
+    val hasPrevEpisode = currentEpIndex > 0
+    val hasNextEpisode = currentEpIndex in 0 until episodes.size - 1
 
     var embedUrl by remember { mutableStateOf<String?>(null) }
     var introInterval by remember { mutableStateOf<SkipInterval?>(null) }
@@ -173,6 +186,10 @@ fun PlayerScreen(
 
                 introInterval?.let { intro ->
                     showSkipIntro = pos in intro.start..intro.end
+                    if (appPrefs.autoSkipIntro && pos in intro.start..(intro.start + 2500)) {
+                        exoPlayer.seekTo(intro.end + 1000)
+                        showSkipIntro = false
+                    }
                 } ?: run {
                     showSkipIntro = pos in 60_000L..150_000L // sensible default OP interval
                 }
@@ -198,8 +215,22 @@ fun PlayerScreen(
         }
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    if (appPrefs.autoPlayNext) {
+                        val idx = episodes.indexOfFirst { it.number == currentEpisode?.number }
+                        if (idx in 0 until episodes.size - 1) {
+                            currentEpisode = episodes[idx + 1]
+                        }
+                    }
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
         onDispose {
+            exoPlayer.removeListener(listener)
             exoPlayer.release()
         }
     }
@@ -420,6 +451,41 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.width(6.dp))
 
+            // Watchlist / Bookmark Button
+            IconButton(
+                onClick = {
+                    scope.launch {
+                        val animeObj = Anime(
+                            id = animeId,
+                            title = animeTitle,
+                            englishTitle = animeTitle,
+                            coverImage = coverUrl,
+                            bannerImage = null,
+                            description = null,
+                            format = "TV",
+                            status = null,
+                            episodes = episodes.size.takeIf { it > 0 },
+                            genres = emptyList(),
+                            averageScore = null,
+                            isDonghua = false,
+                            currentEpisode = currentEpisode?.number
+                        )
+                        isBookmarked = dbHelper.toggleWatchlist(animeObj)
+                    }
+                },
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DarkSurface.copy(alpha = 0.8f))
+            ) {
+                Icon(
+                    imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                    contentDescription = "Watchlist",
+                    tint = if (isBookmarked) AccentAmber else TextPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
             // Picture-in-Picture Button
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 IconButton(
@@ -546,6 +612,46 @@ fun PlayerScreen(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
                 )
+            }
+        }
+
+        // FLOATING PREV / NEXT EPISODE NAVIGATION
+        if (!isInPip && episodes.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(bottom = 76.dp, start = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (hasPrevEpisode) {
+                    IconButton(
+                        onClick = { currentEpisode = episodes[currentEpIndex - 1] },
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(DarkSurface.copy(alpha = 0.85f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.SkipPrevious,
+                            contentDescription = "Previous Episode",
+                            tint = TextPrimary
+                        )
+                    }
+                }
+
+                if (hasNextEpisode) {
+                    IconButton(
+                        onClick = { currentEpisode = episodes[currentEpIndex + 1] },
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(DarkSurface.copy(alpha = 0.85f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.SkipNext,
+                            contentDescription = "Next Episode",
+                            tint = PrimaryViolet
+                        )
+                    }
+                }
             }
         }
 
