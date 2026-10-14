@@ -59,9 +59,9 @@ A sleek, ad-free desktop application for streaming anime with zero setup, local 
 
 ## 📦 Download
 
-### 📱 Android APKs (Ultralight ~3.6 MB)
-- 🚀 **[`Aniverse-v1.0.0-arm64.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.0.1/Aniverse-v1.0.0-arm64.apk)** (Modern 64-bit Android smartphones & tablets)
-- 📦 **[`Aniverse-v1.0.0-armv7.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.0.1/Aniverse-v1.0.0-armv7.apk)** (32-bit Android devices & older emulators)
+### 📱 Android APKs (Ultralight ~3.9 MB)
+- 🚀 **[`Aniverse-v1.0.0-arm64.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.1.0/Aniverse-v1.0.0-arm64.apk)** (Modern 64-bit Android smartphones & tablets)
+- 📦 **[`Aniverse-v1.0.0-armv7.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.1.0/Aniverse-v1.0.0-armv7.apk)** (32-bit Android devices & older emulators)
 
 ### 💻 Windows Desktop
 - 💿 **[`Aniverse.Setup.1.0.0.exe`](https://github.com/thisissufian/Aniverse/releases/download/v1.0.1/Aniverse.Setup.1.0.0.exe)** (Standard installer — prompts you to pick your install directory)
