@@ -8,8 +8,8 @@ We are thrilled to release **Aniverse v1.1.0**, featuring our brand-new standalo
 
 | Architecture | Package | Description | Exact Size |
 | :--- | :--- | :--- | :--- |
-| **ARM64 (64-bit)** | **[`Aniverse-v1.1.0-arm64.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.1.0/Aniverse-v1.1.0-arm64.apk)** | **Recommended** for modern Android phones and tablets | **3.99 MB** (4,188,271 bytes) |
-| **ARMv7 (32-bit)** | **[`Aniverse-v1.1.0-armv7.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.1.0/Aniverse-v1.1.0-armv7.apk)** | For older 32-bit devices and legacy emulators | **3.99 MB** (4,188,271 bytes) |
+| **ARM64 (64-bit)** | **[`Aniverse-v1.1.0-arm64.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.1.0/Aniverse-v1.1.0-arm64.apk)** | **Recommended** for modern Android phones and tablets | **4.00 MB** (4,190,635 bytes) |
+| **ARMv7 (32-bit)** | **[`Aniverse-v1.1.0-armv7.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.1.0/Aniverse-v1.1.0-armv7.apk)** | For older 32-bit devices and legacy emulators | **4.00 MB** (4,190,635 bytes) |
 
 > 💡 **Android Installation Note**: Since Aniverse is an open-source project without a commercial signing certificate, Android may show an *"Install from unknown sources"* or *"Unrecognized app"* prompt. Tap **Settings** $\rightarrow$ **Allow from this source** $\rightarrow$ **Install anyway**.
 
@@ -18,11 +18,18 @@ We are thrilled to release **Aniverse v1.1.0**, featuring our brand-new standalo
 ### 🌟 What's New in v1.1.0
 
 #### 📱 1. Standalone Native Android Mobile App
-- **Ultralight 3.99 MB APK**: Engineered with **Native Kotlin**, **Jetpack Compose (BOM 2024.06.00)**, and **Media3 ExoPlayer**. Full R8 ProGuard code & resource minification.
-- **YouTube-Style In-App Floating Mini-Player**:
+- **Ultralight 4.00 MB APK**: Engineered with **Native Kotlin**, **Jetpack Compose (BOM 2024.06.00)**, and **Media3 ExoPlayer**. Full R8 ProGuard code & resource minification.
+- **Floating Mini-Player with Transparent Controls**:
   - Video **continues playing live** in a floating 16:9 window in the bottom-right corner while you browse Home, Search, History, Watchlist, or Profile.
-  - Quick Play/Pause button, Close (`X`) button, and real-time red progress bar.
+  - **Center Expand Button**: 4-corner viewfinder icon to return directly to the player page.
+  - **Top-Right Close Cross (`X`)**: Instantly closes and stops playback.
+  - **Bottom Controls**: Previous episode $\vert\blacktriangleleft\blacktriangleleft$, Play/Pause $\blacktriangleright/\vert\vert$, Next episode $\blacktriangleright\blacktriangleright\vert$.
+  - **Bottom Red Progress Bar**: Real-time progress indicator.
   - Powered by Jetpack Compose `movableContentOf` with zero reloads, zero buffering, and zero stutter.
+- **Streamlined Player View**:
+  - Removed top minimize and PiP overlay icons for an unobstructed viewing experience.
+  - Auto-minimizes when pressing Android system Back.
+  - Tap the in-player mini-player button on the video player itself to minimize.
   - Tap the floating mini-player anytime to expand smoothly back into full view.
 - **Dedicated Watch History Tab in Bottom Navbar**:
   - 5-item navigation bar: **Home**, **Search**, **History**, **Watchlist**, **Profile**.

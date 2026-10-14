@@ -70,7 +70,8 @@ class WebAppInterface(
     private val onToggleFullscreen: () -> Unit,
     private val isCurrentFullscreen: () -> Boolean,
     private val onPlaybackChanged: (Boolean) -> Unit,
-    private val onTimeUpdate: (Long, Long) -> Unit = { _, _ -> }
+    private val onTimeUpdate: (Long, Long) -> Unit = { _, _ -> },
+    private val onTriggerMiniPlayer: () -> Unit = {}
 ) {
     @JavascriptInterface
     fun toggleFullscreen() {
@@ -90,6 +91,11 @@ class WebAppInterface(
     @JavascriptInterface
     fun onTimeUpdate(positionSec: Float, durationSec: Float) {
         onTimeUpdate((positionSec * 1000).toLong(), (durationSec * 1000).toLong())
+    }
+
+    @JavascriptInterface
+    fun triggerMiniPlayer() {
+        onTriggerMiniPlayer()
     }
 }
 
@@ -631,6 +637,20 @@ fun PlayerScreen(
                                 }
                                 if (!data) return;
 
+                                var rawStr = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
+                                var lowerStr = (rawStr || '').toLowerCase();
+
+                                // In-player mini player / PIP button trigger from player controls
+                                if (data.megaCommand === 'pip' || data.megaCommand === 'togglePip' || data.megaCommand === 'miniPlayer' || data.megaCommand === 'mini' ||
+                                    data.command === 'pip' || data.command === 'togglePip' || data.command === 'mini' || data.command === 'miniPlayer' ||
+                                    data.event === 'pip' || data.event === 'enterpip' || data.event === 'enterpictureinpicture' ||
+                                    data.type === 'pip' || data.type === 'mini' || data.type === 'miniplayer' ||
+                                    lowerStr.indexOf('pip') !== -1 || lowerStr.indexOf('miniplayer') !== -1 || lowerStr.indexOf('pictureinpicture') !== -1) {
+                                    if (window.AndroidBridge && window.AndroidBridge.triggerMiniPlayer) {
+                                        window.AndroidBridge.triggerMiniPlayer();
+                                    }
+                                }
+
                                 // Handle MegaPlay in-player fullscreen button command
                                 if (data.megaCommand === 'toggleFullscreen') {
                                     if (window.AndroidBridge) {
@@ -708,6 +728,11 @@ fun PlayerScreen(
                                             if (durMs > 1000) totalPlayDurationMs = durMs
                                             com.aniverse.app.util.NowPlayingController.updateProgress(posMs, durMs)
                                         }
+                                    },
+                                    onTriggerMiniPlayer = {
+                                        scope.launch(Dispatchers.Main) {
+                                            onMinimize()
+                                        }
                                     }
                                 ),
                                 "AndroidBridge"
@@ -720,6 +745,29 @@ fun PlayerScreen(
                                         return false
                                     }
                                     return true
+                                }
+
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    view?.evaluateJavascript(
+                                        """
+                                        (function() {
+                                            try {
+                                                Object.defineProperty(document, 'pictureInPictureEnabled', { get: function() { return true; }, configurable: true });
+                                                if (window.HTMLVideoElement && !HTMLVideoElement.prototype._pipHooked) {
+                                                    HTMLVideoElement.prototype._pipHooked = true;
+                                                    HTMLVideoElement.prototype.requestPictureInPicture = function() {
+                                                        if (window.AndroidBridge && window.AndroidBridge.triggerMiniPlayer) {
+                                                            window.AndroidBridge.triggerMiniPlayer();
+                                                        }
+                                                        return Promise.resolve();
+                                                    };
+                                                }
+                                            } catch(e) {}
+                                        })();
+                                        """.trimIndent(),
+                                        null
+                                    )
                                 }
                             }
 
@@ -837,78 +885,48 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Top Bar (Minimize button, Anime/Episode Title, PiP button)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color.Black.copy(alpha = 0.85f), Color.Transparent)
-                                )
-                            )
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = {
-                                if (isFullscreen) {
-                                    setFullscreenMode(false)
-                                } else {
-                                    onMinimize()
-                                }
-                            },
+                    // Top Bar (Only shown in Fullscreen Landscape mode with Back button to exit fullscreen)
+                    if (isFullscreen) {
+                        Row(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(DarkSurface.copy(alpha = 0.8f))
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(Color.Black.copy(alpha = 0.85f), Color.Transparent)
+                                    )
+                                )
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = if (isFullscreen) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.KeyboardArrowDown,
-                                contentDescription = if (isFullscreen) "Exit Fullscreen" else "Minimize",
-                                tint = TextPrimary
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(10.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = englishTitle ?: animeTitle,
-                                color = TextPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = currentEpisode?.title ?: "Episode ${currentEpisode?.number ?: 1}",
-                                color = PrimaryViolet,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        // PiP Button
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                             IconButton(
-                                onClick = {
-                                    try {
-                                        activity?.enterPictureInPictureMode(
-                                            android.app.PictureInPictureParams.Builder()
-                                                .setAspectRatio(android.util.Rational(16, 9))
-                                                .build()
-                                        )
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                    }
-                                },
+                                onClick = { setFullscreenMode(false) },
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(DarkSurface.copy(alpha = 0.8f))
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.PictureInPictureAlt,
-                                    contentDescription = "PiP",
-                                    tint = AccentAmber
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Exit Fullscreen",
+                                    tint = TextPrimary
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = englishTitle ?: animeTitle,
+                                    color = TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = currentEpisode?.title ?: "Episode ${currentEpisode?.number ?: 1}",
+                                    color = PrimaryViolet,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
@@ -1130,58 +1148,138 @@ fun PlayerScreen(
     }
 
     if (isMinimized) {
-        // YOUTUBE-STYLE FLOATING MINI-PLAYER WINDOW
+        // FLOATING MINI-PLAYER WINDOW (Matching Screenshot)
         Card(
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = Color.Black),
-            elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
             modifier = modifier
-                .width(204.dp)
+                .width(220.dp)
                 .aspectRatio(16f / 9f)
-                .border(1.dp, PrimaryViolet.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
                 .clickable { onExpand() }
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // 1. Live video player surface playing continuously!
                 playerSurface()
 
-                // 2. Play / Pause Button (Top-Left, YouTube style!)
-                IconButton(
-                    onClick = { togglePlayPause() },
+                // Semi-transparent dark overlay for high contrast controls (Matching Screenshot)
+                Box(
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(6.dp)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.65f))
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.35f))
+                )
+
+                // 2. Top Row: Settings (Left) & Close (Right)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .align(Alignment.TopCenter),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            val nextAudio = if (activeAudioTab == "sub") "dub" else "sub"
+                            activeAudioTab = nextAudio
+                            currentEpisode?.let { loadStreamForEpisode(it) }
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Settings / Audio Format",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { onClose() },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Close Mini Player",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                // 3. Center: 4-Corner Expand Icon (takes user to the player page)
+                IconButton(
+                    onClick = { onExpand() },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .align(Alignment.Center)
                 ) {
                     Icon(
-                        imageVector = if (PipController.isVideoPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (PipController.isVideoPlaying) "Pause" else "Play",
+                        imageVector = Icons.Filled.CropFree,
+                        contentDescription = "Expand to Player Page",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(32.dp)
                     )
                 }
 
-                // 3. Close Button ('X') (Top-Right, YouTube style!)
-                IconButton(
-                    onClick = { onClose() },
+                // 4. Bottom Controls Row: Previous, Pause/Play, Next
+                Row(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.65f))
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                        .align(Alignment.BottomCenter),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = "Close",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    IconButton(
+                        onClick = {
+                            if (hasPrevEpisode) {
+                                currentEpisode = episodes[currentEpIndex - 1]
+                            }
+                        },
+                        enabled = hasPrevEpisode,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.SkipPrevious,
+                            contentDescription = "Previous Episode",
+                            tint = if (hasPrevEpisode) Color.White else Color.White.copy(alpha = 0.35f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { togglePlayPause() },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (PipController.isVideoPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (PipController.isVideoPlaying) "Pause" else "Play",
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            if (hasNextEpisode) {
+                                currentEpisode = episodes[currentEpIndex + 1]
+                            }
+                        },
+                        enabled = hasNextEpisode,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.SkipNext,
+                            contentDescription = "Next Episode",
+                            tint = if (hasNextEpisode) Color.White else Color.White.copy(alpha = 0.35f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
 
-                // 4. Red progress bar at bottom of mini-player card (YouTube style!)
+                // 5. Red progress bar at bottom of mini-player card
                 val progress = if (totalPlayDurationMs > 0) {
                     (currentPlayPositionMs.toFloat() / totalPlayDurationMs.toFloat()).coerceIn(0f, 1f)
                 } else 0f
