@@ -110,8 +110,10 @@ fun NavGraph(
                 )
             ) { backStackEntry ->
                 val animeId = backStackEntry.arguments?.getInt("animeId") ?: 0
-                val title = backStackEntry.arguments?.getString("title") ?: ""
-                val englishTitle = backStackEntry.arguments?.getString("englishTitle")?.takeIf { it.isNotEmpty() }
+                val rawTitle = backStackEntry.arguments?.getString("title") ?: ""
+                val title = try { java.net.URLDecoder.decode(rawTitle, "UTF-8") } catch (e: Exception) { rawTitle }
+                val rawEng = backStackEntry.arguments?.getString("englishTitle")?.takeIf { it.isNotEmpty() }
+                val englishTitle = rawEng?.let { try { java.net.URLDecoder.decode(it, "UTF-8") } catch (e: Exception) { it } }
                 val cover = backStackEntry.arguments?.getString("cover") ?: ""
                 val format = backStackEntry.arguments?.getString("format") ?: "TV"
 

@@ -4,7 +4,10 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.media.AudioManager
+import android.view.OrientationEventListener
+import android.view.View
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -21,10 +24,6 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -62,8 +61,31 @@ import com.aniverse.app.data.model.ServerItem
 import com.aniverse.app.data.model.SkipInterval
 import com.aniverse.app.data.remote.AnikotoResolver
 import com.aniverse.app.ui.theme.*
+import com.aniverse.app.util.PipController
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+class WebAppInterface(
+    private val onToggleFullscreen: () -> Unit,
+    private val isCurrentFullscreen: () -> Boolean,
+    private val onPlaybackChanged: (Boolean) -> Unit
+) {
+    @JavascriptInterface
+    fun toggleFullscreen() {
+        onToggleFullscreen()
+    }
+
+    @JavascriptInterface
+    fun isFullscreen(): Boolean {
+        return isCurrentFullscreen()
+    }
+
+    @JavascriptInterface
+    fun setPlaybackState(isPlaying: Boolean) {
+        onPlaybackChanged(isPlaying)
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,6 +114,7 @@ fun PlayerScreen(
     var isBookmarked by remember { mutableStateOf(false) }
 
     var isFullscreen by remember { mutableStateOf(false) }
+    var isOrientationLocked by remember { mutableStateOf(false) }
     var showControlsOverlay by remember { mutableStateOf(true) }
 
     var embedUrl by remember { mutableStateOf<String?>(null) }
@@ -107,7 +130,7 @@ fun PlayerScreen(
     var showSkipIntro by remember { mutableStateOf(false) }
     var showSkipOutro by remember { mutableStateOf(false) }
 
-    // Episode range chunking (30 episodes per tab for large series)
+    // Chunking for large series (30 episodes per tab)
     val chunkSize = 30
     var selectedChunkIndex by remember { mutableStateOf(0) }
 
@@ -115,7 +138,9 @@ fun PlayerScreen(
     var seekFeedbackText by remember { mutableStateOf<String?>(null) }
     var volumeFeedback by remember { mutableStateOf<Float?>(null) }
     var brightnessFeedback by remember { mutableStateOf<Float?>(null) }
+    var lockFeedbackText by remember { mutableStateOf<String?>(null) }
 
+    var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
     // ExoPlayer
@@ -135,25 +160,75 @@ fun PlayerScreen(
                 insetsController.hide(WindowInsetsCompat.Type.systemBars())
                 insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             } else {
+                isOrientationLocked = false
                 act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
             }
         }
+
+        // Notify iframe player of fullscreen state change
+        webViewInstance?.evaluateJavascript(
+            """
+            (function() {
+                var iframe = document.getElementById('player-frame');
+                if (iframe && iframe.contentWindow) {
+                    try {
+                        iframe.contentWindow.postMessage({ megaFullscreenState: $enable }, '*');
+                    } catch(e) {}
+                }
+            })();
+            """.trimIndent(),
+            null
+        )
     }
 
-    // Handle back button when in fullscreen
-    BackHandler(enabled = isFullscreen) {
-        setFullscreenMode(false)
+    // Auto-Orientation Detection
+    val orientationListener = remember {
+        object : OrientationEventListener(context) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+
+                // If orientation is locked by user, do NOT rotate automatically
+                if (isOrientationLocked) return
+
+                val isLandscape = (orientation in 65..115) || (orientation in 245..295)
+                val isPortrait = (orientation in 340..360) || (orientation in 0..20) || (orientation in 160..200)
+
+                if (isLandscape && !isFullscreen) {
+                    setFullscreenMode(true)
+                } else if (isPortrait && isFullscreen) {
+                    setFullscreenMode(false)
+                }
+            }
+        }
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(orientationListener) {
+        if (orientationListener.canDetectOrientation()) {
+            orientationListener.enable()
+        }
         onDispose {
+            orientationListener.disable()
+        }
+    }
+
+    // Manage PiP Active state
+    DisposableEffect(Unit) {
+        PipController.isPlayerActive = true
+        onDispose {
+            PipController.isPlayerActive = false
+            PipController.isVideoPlaying = false
             activity?.let { act ->
                 act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                 WindowCompat.getInsetsController(act.window, act.window.decorView).show(WindowInsetsCompat.Type.systemBars())
             }
             exoPlayer.release()
         }
+    }
+
+    // Handle back button when in fullscreen
+    BackHandler(enabled = isFullscreen) {
+        setFullscreenMode(false)
     }
 
     LaunchedEffect(animeId) {
@@ -194,6 +269,9 @@ fun PlayerScreen(
                     introInterval = embedResult.intro
                     outroInterval = embedResult.outro
 
+                    // Mark video playing for PiP as soon as stream resolves
+                    PipController.isVideoPlaying = true
+
                     if (embedResult.embedUrl.endsWith(".m3u8") || embedResult.embedUrl.endsWith(".mp4")) {
                         exoPlayer.setMediaItem(MediaItem.fromUri(embedResult.embedUrl))
                         exoPlayer.prepare()
@@ -209,7 +287,7 @@ fun PlayerScreen(
         }
     }
 
-    // Episode loading function
+    // Episode list resolution function
     fun fetchEpisodesList() {
         scope.launch {
             isLoadingEpisodes = true
@@ -222,7 +300,6 @@ fun PlayerScreen(
                 )
                 episodes = list
                 if (list.isNotEmpty()) {
-                    // Try to resume last watched episode if in history
                     val history = dbHelper.getWatchHistory().find { it.animeId == animeId }
                     val initialEp = history?.let { h -> list.find { it.number == h.episodeNumber } } ?: list.first()
                     currentEpisode = initialEp
@@ -256,7 +333,7 @@ fun PlayerScreen(
         }
     }
 
-    // Auto next & progress tracking
+    // ExoPlayer progress & listeners
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -266,6 +343,10 @@ fun PlayerScreen(
                         currentEpisode = episodes[idx + 1]
                     }
                 }
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                PipController.isVideoPlaying = isPlaying
             }
         }
         exoPlayer.addListener(listener)
@@ -311,7 +392,7 @@ fun PlayerScreen(
     val hasPrevEpisode = currentEpIndex > 0
     val hasNextEpisode = currentEpIndex in 0 until episodes.size - 1
 
-    // Video Player Box (Reused in both portrait and fullscreen)
+    // Video Player Surface
     @Composable
     fun VideoPlayerSurface(modifier: Modifier = Modifier) {
         Box(
@@ -389,8 +470,6 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             } else if (!embedUrl.isNullOrEmpty()) {
-                // Wrap embed inside Anikoto base URL wrapper with meta referrer policy
-                // This guarantees MegaPlay receives 'Referer: https://anikototv.to/' avoiding Error 410!
                 val embedHtml = remember(embedUrl) {
                     """
                     <!DOCTYPE html>
@@ -406,11 +485,44 @@ fun PlayerScreen(
                     </head>
                     <body>
                         <iframe 
+                            id="player-frame"
                             src="$embedUrl" 
                             allow="autoplay; fullscreen; picture-in-picture; encrypted-media" 
                             allowfullscreen="true" 
                             referrerpolicy="unsafe-url">
                         </iframe>
+
+                        <script>
+                            window.addEventListener('message', function(event) {
+                                var data = event.data;
+                                if (typeof data === 'string') {
+                                    try { data = JSON.parse(data); } catch(e) {}
+                                }
+                                if (!data) return;
+
+                                // Handle MegaPlay in-player fullscreen button command
+                                if (data.megaCommand === 'toggleFullscreen') {
+                                    if (window.AndroidBridge) {
+                                        window.AndroidBridge.toggleFullscreen();
+                                    }
+                                } else if (data.megaCommand === 'getFullscreenState') {
+                                    if (window.AndroidBridge && event.source) {
+                                        var isFs = window.AndroidBridge.isFullscreen();
+                                        try {
+                                            event.source.postMessage({ megaFullscreenState: isFs }, '*');
+                                        } catch(e) {}
+                                    }
+                                }
+
+                                // Handle playback state
+                                var evt = (data.event || data.type || '').toLowerCase();
+                                if (evt === 'play' || evt === 'playing') {
+                                    if (window.AndroidBridge) window.AndroidBridge.setPlaybackState(true);
+                                } else if (evt === 'pause' || evt === 'ended' || evt === 'complete') {
+                                    if (window.AndroidBridge) window.AndroidBridge.setPlaybackState(false);
+                                }
+                            });
+                        </script>
                     </body>
                     </html>
                     """.trimIndent()
@@ -435,21 +547,56 @@ fun PlayerScreen(
                                 allowFileAccess = true
                                 allowContentAccess = true
                             }
+
+                            addJavascriptInterface(
+                                WebAppInterface(
+                                    onToggleFullscreen = {
+                                        scope.launch(Dispatchers.Main) {
+                                            setFullscreenMode(!isFullscreen)
+                                        }
+                                    },
+                                    isCurrentFullscreen = { isFullscreen },
+                                    onPlaybackChanged = { isPlaying ->
+                                        scope.launch(Dispatchers.Main) {
+                                            PipController.isVideoPlaying = isPlaying
+                                        }
+                                    }
+                                ),
+                                "AndroidBridge"
+                            )
+
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                                     val url = request?.url?.toString() ?: return false
-                                    // Keep player requests inside the webview; block spam external ad redirects
                                     if (url.contains("megaplay") || url.contains("anikoto") || url.contains("tcdn") || url.contains("bcdn") || url.contains("stream")) {
                                         return false
                                     }
                                     return true
                                 }
                             }
-                            webChromeClient = WebChromeClient()
+
+                            webChromeClient = object : WebChromeClient() {
+                                override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+                                    super.onShowCustomView(view, callback)
+                                    scope.launch(Dispatchers.Main) {
+                                        setFullscreenMode(true)
+                                    }
+                                }
+
+                                override fun onHideCustomView() {
+                                    super.onHideCustomView()
+                                    scope.launch(Dispatchers.Main) {
+                                        setFullscreenMode(false)
+                                    }
+                                }
+                            }
+
                             loadDataWithBaseURL("https://anikototv.to/", embedHtml, "text/html", "UTF-8", null)
+                            webViewInstance = this
                         }
                     },
                     update = { webView ->
+                        webViewInstance = webView
                         webView.loadDataWithBaseURL("https://anikototv.to/", embedHtml, "text/html", "UTF-8", null)
                     },
                     modifier = Modifier.fillMaxSize()
@@ -516,7 +663,6 @@ fun PlayerScreen(
                                 Text("Retry", fontSize = 13.sp)
                             }
 
-                            // Switch to another server
                             val altServer = servers.firstOrNull { it.linkId != selectedServer?.linkId }
                             if (altServer != null) {
                                 OutlinedButton(
@@ -535,7 +681,7 @@ fun PlayerScreen(
                 }
             }
 
-            // Controls Overlay (Header & Bottom Actions)
+            // Controls Overlay
             AnimatedVisibility(
                 visible = showControlsOverlay || isFullscreen,
                 enter = fadeIn(),
@@ -543,7 +689,7 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Top Bar
+                    // Top Bar (Back button, Anime/Episode Title, PiP button)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -618,25 +764,49 @@ fun PlayerScreen(
                                     tint = AccentAmber
                                 )
                             }
-                            Spacer(modifier = Modifier.width(6.dp))
                         }
+                    }
 
-                        // Fullscreen Toggle Button
-                        IconButton(
-                            onClick = { setFullscreenMode(!isFullscreen) },
+                    // Transparent Lock Button in Fullscreen Mode
+                    if (isFullscreen) {
+                        Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(DarkSurface.copy(alpha = 0.8f))
+                                .align(Alignment.CenterStart)
+                                .padding(start = 20.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.45f))
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isOrientationLocked) PrimaryViolet else Color.White.copy(alpha = 0.35f),
+                                    shape = CircleShape
+                                )
+                                .clickable {
+                                    isOrientationLocked = !isOrientationLocked
+                                    if (isOrientationLocked) {
+                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                        lockFeedbackText = "Screen Locked"
+                                    } else {
+                                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                                        lockFeedbackText = "Screen Unlocked"
+                                    }
+                                    scope.launch {
+                                        delay(1200)
+                                        lockFeedbackText = null
+                                    }
+                                }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (isFullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
-                                contentDescription = "Toggle Fullscreen",
-                                tint = Color.White
+                                imageVector = if (isOrientationLocked) Icons.Filled.Lock else Icons.Filled.LockOpen,
+                                contentDescription = if (isOrientationLocked) "Unlock Screen" else "Lock Screen",
+                                tint = if (isOrientationLocked) PrimaryViolet else Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
 
-                    // Floating Navigation Buttons (Prev / Next) in Fullscreen
+                    // Floating Prev / Next Buttons in Fullscreen
                     if (isFullscreen && episodes.isNotEmpty()) {
                         Row(
                             modifier = Modifier
@@ -690,6 +860,20 @@ fun PlayerScreen(
                             Text("Skip Intro", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
+            }
+
+            // Orientation Lock Feedback Overlay
+            lockFeedbackText?.let { text ->
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(DarkSurface.copy(alpha = 0.9f))
+                        .border(1.dp, PrimaryViolet.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 24.dp, vertical = 14.dp)
+                ) {
+                    Text(text = text, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -752,7 +936,7 @@ fun PlayerScreen(
             VideoPlayerSurface(modifier = Modifier.fillMaxSize())
         }
     } else {
-        // PORTRAIT VIEW (Player at top, full scrollable details & episode list below)
+        // PORTRAIT VIEW (16:9 player surface with episode list below)
         Column(
             modifier = modifier
                 .fillMaxSize()
@@ -773,7 +957,6 @@ fun PlayerScreen(
                     .weight(1f),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
             ) {
-                // Anime Title & Active Episode indicator
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -959,7 +1142,7 @@ fun PlayerScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 3. EPISODE LIST SECTION (Prominently displayed)
+                // 3. EPISODE LIST SECTION
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1003,7 +1186,7 @@ fun PlayerScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // Episode Chunking Tabs (For anime with > 30 episodes like One Piece)
+                // Episode Chunking Tabs (For anime with > 30 episodes like Black Clover or One Piece)
                 if (episodes.size > chunkSize) {
                     item {
                         val chunkCount = (episodes.size + chunkSize - 1) / chunkSize
@@ -1093,7 +1276,6 @@ fun PlayerScreen(
                         }
                     }
                 } else {
-                    // Visible episodes for the selected chunk
                     val displayedEpisodes = if (episodes.size > chunkSize) {
                         val start = selectedChunkIndex * chunkSize
                         val end = minOf(start + chunkSize, episodes.size)
@@ -1103,7 +1285,6 @@ fun PlayerScreen(
                     }
 
                     item {
-                        // Grid of Episode Buttons
                         val columns = 5
                         val rows = (displayedEpisodes.size + columns - 1) / columns
                         Column(
