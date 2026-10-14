@@ -556,11 +556,12 @@ fun PlayerScreen(
                     }
                 }
                 .then(
-                    if (!isMinimized) {
+                    if (!isMinimized && !PipController.isInPipMode) {
                         Modifier
-                            .pointerInput(Unit) {
+                            .pointerInput(isMinimized, PipController.isInPipMode) {
                                 detectTapGestures(
                                     onDoubleTap = { offset ->
+                                        if (isMinimized || PipController.isInPipMode) return@detectTapGestures
                                         val screenWidth = size.width
                                         if (offset.x < screenWidth / 2) {
                                             val newPos = (exoPlayer.currentPosition - 10_000).coerceAtLeast(0)
@@ -578,9 +579,10 @@ fun PlayerScreen(
                                     }
                                 )
                             }
-                            .pointerInput(Unit) {
+                            .pointerInput(isMinimized, PipController.isInPipMode) {
                                 detectVerticalDragGestures(
                                     onVerticalDrag = { change, dragAmount ->
+                                        if (isMinimized || PipController.isInPipMode) return@detectVerticalDragGestures
                                         val screenWidth = size.width
                                         val x = change.position.x
                                         if (x < screenWidth / 2) {
@@ -1119,52 +1121,54 @@ fun PlayerScreen(
             }
 
             // Seek Feedback Overlay
-            seekFeedbackText?.let { text ->
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .clip(CircleShape)
-                        .background(DarkSurface.copy(alpha = 0.85f))
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                ) {
-                    Text(text = text, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            // Volume Indicator
-            volumeFeedback?.let { vol ->
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 24.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(DarkSurface.copy(alpha = 0.9f))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = PrimaryViolet)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "${(vol * 100).toInt()}%", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            if (!isMinimized && !PipController.isInPipMode) {
+                seekFeedbackText?.let { text ->
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .clip(CircleShape)
+                            .background(DarkSurface.copy(alpha = 0.85f))
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                    ) {
+                        Text(text = text, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-            }
 
-            // Brightness Indicator
-            brightnessFeedback?.let { br ->
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 24.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(DarkSurface.copy(alpha = 0.9f))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Filled.BrightnessMedium, contentDescription = null, tint = AccentAmber)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "${(br * 100).toInt()}%", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                // Volume Indicator
+                volumeFeedback?.let { vol ->
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 24.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(DarkSurface.copy(alpha = 0.9f))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = PrimaryViolet)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = "${(vol * 100).toInt()}%", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Brightness Indicator
+                brightnessFeedback?.let { br ->
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 24.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(DarkSurface.copy(alpha = 0.9f))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.BrightnessMedium, contentDescription = null, tint = AccentAmber)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = "${(br * 100).toInt()}%", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
