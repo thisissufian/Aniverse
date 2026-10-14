@@ -16,32 +16,40 @@ export const getMediaStreamingSources = ({ type, id, season = 1, episode = 1 }) 
       server: 'vidlink',
       type: 'sub',
       url: isMovie
-        ? `https://vidlink.pro/movie/${tmdbId}`
-        : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`,
+        ? `https://vidlink.pro/movie/${tmdbId}?primaryColor=8B5CF6&secondaryColor=13131a&iconColor=ffffff`
+        : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=8B5CF6&secondaryColor=13131a&iconColor=ffffff`,
     },
     {
-      name: 'HD-2 (VidSrc)',
-      server: 'vidsrc',
-      type: 'sub',
-      url: isMovie
-        ? `https://vidsrc.to/embed/movie/${tmdbId}`
-        : `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}`,
-    },
-    {
-      name: 'HD-3 (SuperEmbed)',
-      server: 'superembed',
+      name: 'HD-2 (MultiEmbed)',
+      server: 'multiembed',
       type: 'sub',
       url: isMovie
         ? `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`
         : `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season}&e=${episode}`,
     },
     {
-      name: 'VidSrc V2',
-      server: 'vidsrc-cc',
+      name: 'HD-3 (VidSrc)',
+      server: 'vidsrc-me',
       type: 'sub',
       url: isMovie
-        ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}`
-        : `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season}/${episode}`,
+        ? `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`
+        : `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
+    },
+    {
+      name: 'HD-4 (AutoEmbed)',
+      server: 'autoembed',
+      type: 'sub',
+      url: isMovie
+        ? `https://autoembed.co/movie/tmdb/${tmdbId}`
+        : `https://autoembed.co/tv/tmdb/${tmdbId}-${season}-${episode}`,
+    },
+    {
+      name: 'HD-5 (2Embed)',
+      server: '2embed',
+      type: 'sub',
+      url: isMovie
+        ? `https://www.2embed.cc/embed/${tmdbId}`
+        : `https://www.2embed.cc/embedtv/${tmdbId}&s=${season}&e=${episode}`,
     },
   ];
 

@@ -796,6 +796,8 @@ fun PlayerScreen(
                                 userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
                                 allowFileAccess = true
                                 allowContentAccess = true
+                                javaScriptCanOpenWindowsAutomatically = false
+                                setSupportMultipleWindows(false)
                             }
 
                             addJavascriptInterface(
@@ -848,7 +850,17 @@ fun PlayerScreen(
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                                     val url = request?.url?.toString() ?: return false
-                                    if (url.contains("megaplay") || url.contains("anikoto") || url.contains("tcdn") || url.contains("bcdn") || url.contains("stream")) {
+                                    val isAllowedStream = url.contains("megaplay") || 
+                                                          url.contains("anikoto") || 
+                                                          url.contains("tcdn") || 
+                                                          url.contains("bcdn") || 
+                                                          url.contains("stream") ||
+                                                          url.contains("vidlink.pro") ||
+                                                          url.contains("vidsrc") ||
+                                                          url.contains("multiembed.mov") ||
+                                                          url.contains("autoembed") ||
+                                                          url.contains("2embed")
+                                    if (isAllowedStream) {
                                         return false
                                     }
                                     return true
@@ -856,6 +868,16 @@ fun PlayerScreen(
 
                                 override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                                     val url = request?.url?.toString() ?: return null
+                                    val lower = url.lowercase()
+                                    if (lower.contains("popads") || lower.contains("popcash") ||
+                                        lower.contains("propellerads") || lower.contains("monetag") ||
+                                        lower.contains("adsterra") || lower.contains("exoclick") ||
+                                        lower.contains("doubleclick") || lower.contains("betking") ||
+                                        lower.contains("1xbet") || lower.contains("adnxs") ||
+                                        lower.contains("banner_ad") || lower.contains("popunder")) {
+                                        return WebResourceResponse("text/plain", "UTF-8", "".byteInputStream())
+                                    }
+
                                     if (url.contains("parent-fullscreen-bridge")) {
                                         return WebResourceResponse(
                                             "application/javascript",
@@ -868,6 +890,10 @@ fun PlayerScreen(
                             }
 
                             webChromeClient = object : WebChromeClient() {
+                                override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?): Boolean {
+                                    return false
+                                }
+
                                 override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
                                     super.onShowCustomView(view, callback)
                                     scope.launch(Dispatchers.Main) {
@@ -884,7 +910,8 @@ fun PlayerScreen(
                             }
 
                             lastLoadedEmbedUrl = embedUrl
-                            loadDataWithBaseURL("https://anikototv.to/", embedHtml, "text/html", "UTF-8", null)
+                            val baseUrl = if (embedUrl?.contains("anikoto") == true || embedUrl?.contains("megaplay") == true) "https://anikototv.to/" else "https://vidlink.pro/"
+                            loadDataWithBaseURL(baseUrl, embedHtml, "text/html", "UTF-8", null)
                             webViewInstance = this
                         }
                     },
@@ -892,7 +919,8 @@ fun PlayerScreen(
                         webViewInstance = webView
                         if (lastLoadedEmbedUrl != embedUrl && !embedUrl.isNullOrEmpty()) {
                             lastLoadedEmbedUrl = embedUrl
-                            webView.loadDataWithBaseURL("https://anikototv.to/", embedHtml, "text/html", "UTF-8", null)
+                            val baseUrl = if (embedUrl?.contains("anikoto") == true || embedUrl?.contains("megaplay") == true) "https://anikototv.to/" else "https://vidlink.pro/"
+                            webView.loadDataWithBaseURL(baseUrl, embedHtml, "text/html", "UTF-8", null)
                         }
                     },
                     modifier = Modifier.fillMaxSize()

@@ -53,27 +53,35 @@ const formatMedia = (item, mediaType = null) => {
   };
 };
 
+const getTodayDate = () => new Date().toISOString().split('T')[0];
+
 export const getKDramaHome = async () => {
-  const cacheKey = 'home_kdrama';
+  const cacheKey = 'home_kdrama_v2';
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
+  const today = getTodayDate();
+
   try {
     const [trendingRes, popularMoviesRes, topRatedRes, onTheAirRes] = await Promise.all([
-      // 1. Trending Korean Dramas
+      // 1. Trending Scripted Korean Dramas (exclude reality & talk shows)
       client.get('/discover/tv', {
         params: {
           with_original_language: 'ko',
           sort_by: 'popularity.desc',
-          'vote_count.gte': 5,
+          without_genres: '10764,10767,10763',
+          with_genres: '18',
+          'first_air_date.lte': today,
+          'vote_count.gte': 15,
         },
       }),
-      // 2. Popular Korean Movies
+      // 2. Popular Released Korean Movies
       client.get('/discover/movie', {
         params: {
           with_original_language: 'ko',
           sort_by: 'popularity.desc',
-          'vote_count.gte': 5,
+          'primary_release_date.lte': today,
+          'vote_count.gte': 10,
         },
       }),
       // 3. Top Rated Korean Dramas of All Time
@@ -81,6 +89,9 @@ export const getKDramaHome = async () => {
         params: {
           with_original_language: 'ko',
           sort_by: 'vote_average.desc',
+          without_genres: '10764,10767,10763',
+          with_genres: '18',
+          'first_air_date.lte': today,
           'vote_count.gte': 80,
         },
       }),
@@ -96,7 +107,9 @@ export const getKDramaHome = async () => {
       trending: (trendingRes.data.results || []).map(item => formatMedia(item, 'tv')),
       popularMovies: (popularMoviesRes.data.results || []).map(item => formatMedia(item, 'movie')),
       topRated: (topRatedRes.data.results || []).map(item => formatMedia(item, 'tv')),
-      onTheAir: (onTheAirRes.data.results || []).filter(i => i.original_language === 'ko').map(item => formatMedia(item, 'tv')),
+      onTheAir: (onTheAirRes.data.results || [])
+        .filter(i => i.original_language === 'ko' && (!i.genre_ids || (!i.genre_ids.includes(10764) && !i.genre_ids.includes(10767))))
+        .map(item => formatMedia(item, 'tv')),
     };
 
     cache.set(cacheKey, result);
@@ -108,24 +121,56 @@ export const getKDramaHome = async () => {
 };
 
 export const getHollywoodHome = async () => {
-  const cacheKey = 'home_hollywood';
+  const cacheKey = 'home_hollywood_v2';
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
+  const today = getTodayDate();
+
   try {
     const [trendingRes, popularMoviesRes, popularTvRes, topRatedMoviesRes] = await Promise.all([
-      // 1. Trending Movies & Shows of the week
+      // 1. Trending Movies & Shows of the week (only released, filter out upcoming)
       client.get('/trending/all/week'),
-      // 2. Popular Movies
-      client.get('/movie/popular'),
-      // 3. Popular TV Series
-      client.get('/tv/popular'),
-      // 4. Top Rated Movies
-      client.get('/movie/top_rated'),
+      // 2. Popular Released Movies
+      client.get('/discover/movie', {
+        params: {
+          sort_by: 'popularity.desc',
+          'primary_release_date.lte': today,
+          'vote_count.gte': 40,
+        },
+      }),
+      // 3. Popular Scripted TV Series (exclude reality/talk shows)
+      client.get('/discover/tv', {
+        params: {
+          sort_by: 'popularity.desc',
+          without_genres: '10764,10767,10763',
+          'first_air_date.lte': today,
+          'vote_count.gte': 50,
+        },
+      }),
+      // 4. Top Rated Released Movies
+      client.get('/movie/top_rated', {
+        params: {
+          'vote_count.gte': 200,
+        },
+      }),
     ]);
 
+    // Filter trending to only items that are actually released with established viewership
+    const validTrending = (trendingRes.data.results || []).filter(item => {
+      const relDate = item.release_date || item.first_air_date;
+      if (!relDate) return false;
+      const isReleased = relDate <= today;
+      const hasVotes = (item.vote_count || 0) >= 100;
+      return isReleased && hasVotes;
+    });
+
+    const trendingItems = validTrending.length >= 6
+      ? validTrending
+      : [...(popularMoviesRes.data.results || []).slice(0, 5), ...(popularTvRes.data.results || []).slice(0, 5)];
+
     const result = {
-      trending: (trendingRes.data.results || []).map(item => formatMedia(item)),
+      trending: trendingItems.map(item => formatMedia(item)),
       popularMovies: (popularMoviesRes.data.results || []).map(item => formatMedia(item, 'movie')),
       popularTv: (popularTvRes.data.results || []).map(item => formatMedia(item, 'tv')),
       topRated: (topRatedMoviesRes.data.results || []).map(item => formatMedia(item, 'movie')),
@@ -156,6 +201,9 @@ export const searchMedia = async ({ query, mode = 'hollywood', type = 'all', gen
       // Discover mode when no search query
       endpoint = type === 'movie' ? '/discover/movie' : '/discover/tv';
       params.sort_by = 'popularity.desc';
+      if (type !== 'movie') {
+        params.without_genres = '10764,10767,10763';
+      }
       if (genre) params.with_genres = genre;
       if (year) {
         if (type === 'movie') params.primary_release_year = year;

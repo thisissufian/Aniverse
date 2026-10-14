@@ -122,6 +122,60 @@ app.whenReady().then(async () => {
     callback({ requestHeaders: details.requestHeaders });
   });
 
+  // AD-BLOCKER: Block all ad networks, tracker domains, and popup scripts at network request level
+  const AD_BLOCK_FILTERS = [
+    '*://*.popads.net/*',
+    '*://*.popcash.net/*',
+    '*://*.propellerads.com/*',
+    '*://*.monetag.com/*',
+    '*://*.adsterra.com/*',
+    '*://*.exoclick.com/*',
+    '*://*.exdynsrv.com/*',
+    '*://*.adnxs.com/*',
+    '*://*.doubleclick.net/*',
+    '*://*.googlesyndication.com/*',
+    '*://*.syndication.exoclick.com/*',
+    '*://*.creative.hpyrdr.com/*',
+    '*://*.highcpmrevenuenetwork.com/*',
+    '*://*.onclickperformance.com/*',
+    '*://*.adservice.google.*/*',
+    '*://*.yieldlab.net/*',
+    '*://*.trafficjunky.com/*',
+    '*://*.trafficjunky.net/*',
+    '*://*.adkeeper.co.uk/*',
+    '*://*.adxpose.com/*',
+    '*://*.adform.net/*',
+    '*://*.rubiconproject.com/*',
+    '*://*.smartadserver.com/*',
+    '*://*.pubmatic.com/*',
+    '*://*.openx.net/*',
+    '*://*.casalemedia.com/*',
+    '*://*.serving-sys.com/*',
+    '*://*.scorecardresearch.com/*',
+    '*://*.quantserve.com/*',
+    '*://*.adtrue.com/*',
+    '*://*.clicksor.com/*',
+    '*://*.mgid.com/*',
+    '*://*.revcontent.com/*',
+    '*://*.taboola.com/*',
+    '*://*.outbrain.com/*',
+    '*://*.betking.*/*',
+    '*://*.1xbet.*/*',
+    '*://*.mostbet.*/*',
+    '*://*.parimatch.*/*',
+    '*://*/*popunder*',
+    '*://*/*banner_ad*',
+    '*://*/*advertisement*',
+    '*://*/*vast.xml*',
+  ];
+
+  session.defaultSession.webRequest.onBeforeRequest(
+    { urls: AD_BLOCK_FILTERS },
+    (details, callback) => {
+      callback({ cancel: true });
+    }
+  );
+
   // Remove restrictive response headers that block iframe embedding
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const headers = details.responseHeaders;
