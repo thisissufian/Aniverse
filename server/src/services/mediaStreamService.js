@@ -12,7 +12,23 @@ export const getMediaStreamingSources = ({ type, id, season = 1, episode = 1 }) 
 
   const servers = [
     {
-      name: 'HD-1 (VidLink)',
+      name: 'HD-1 (VixSrc)',
+      server: 'vixsrc',
+      type: 'sub',
+      url: isMovie
+        ? `https://vixsrc.to/movie/${tmdbId}?primaryColor=8B5CF6&secondaryColor=13131a`
+        : `https://vixsrc.to/tv/${tmdbId}/${season}/${episode}?primaryColor=8B5CF6&secondaryColor=13131a`,
+    },
+    {
+      name: 'HD-2 (VsEmbed)',
+      server: 'vsembed',
+      type: 'sub',
+      url: isMovie
+        ? `https://vsembed.ru/embed/movie/${tmdbId}`
+        : `https://vsembed.ru/embed/tv/${tmdbId}/${season}-${episode}`,
+    },
+    {
+      name: 'HD-3 (VidLink)',
       server: 'vidlink',
       type: 'sub',
       url: isMovie
@@ -20,36 +36,20 @@ export const getMediaStreamingSources = ({ type, id, season = 1, episode = 1 }) 
         : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=8B5CF6&secondaryColor=13131a&iconColor=ffffff`,
     },
     {
-      name: 'HD-2 (MultiEmbed)',
+      name: 'HD-4 (AnyEmbed)',
+      server: 'anyembed',
+      type: 'sub',
+      url: isMovie
+        ? `https://anyembed.xyz/embed/tmdb-movie-${tmdbId}`
+        : `https://anyembed.xyz/embed/tmdb-tv-${tmdbId}-${season}-${episode}`,
+    },
+    {
+      name: 'HD-5 (MultiEmbed)',
       server: 'multiembed',
       type: 'sub',
       url: isMovie
         ? `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`
         : `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season}&e=${episode}`,
-    },
-    {
-      name: 'HD-3 (AutoEmbed)',
-      server: 'autoembed',
-      type: 'sub',
-      url: isMovie
-        ? `https://autoembed.co/movie/tmdb/${tmdbId}`
-        : `https://autoembed.co/tv/tmdb/${tmdbId}-${season}-${episode}`,
-    },
-    {
-      name: 'HD-4 (2Embed)',
-      server: '2embed',
-      type: 'sub',
-      url: isMovie
-        ? `https://www.2embed.cc/embed/${tmdbId}`
-        : `https://www.2embed.cc/embedtv/${tmdbId}&s=${season}&e=${episode}`,
-    },
-    {
-      name: 'HD-5 (VidSrc)',
-      server: 'vidsrc-pm',
-      type: 'sub',
-      url: isMovie
-        ? `https://vidsrc.pm/embed/movie?tmdb=${tmdbId}`
-        : `https://vidsrc.pm/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}`,
     },
   ];
 

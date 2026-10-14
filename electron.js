@@ -122,6 +122,9 @@ app.on('web-contents-created', (event, contents) => {
     if (!lower.startsWith('http://localhost') &&
         !lower.includes('myanimelist.net') &&
         !lower.includes('accounts.google.com') &&
+        !lower.includes('vixsrc.to') &&
+        !lower.includes('vsembed.ru') &&
+        !lower.includes('anyembed.xyz') &&
         !lower.includes('vidlink.pro') &&
         !lower.includes('multiembed.mov') &&
         !lower.includes('streamingnow.mov') &&

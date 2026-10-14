@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Play, SkipForward, ArrowLeft, Star, Tv, Film, Server, Plus, Clock } from 'lucide-react';
+import { Play, SkipForward, ArrowLeft, Star, Tv, Film, Server, Plus, Clock, LayoutGrid, List } from 'lucide-react';
 import api from '../services/api';
 import VideoPlayer from '../components/player/VideoPlayer';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -18,6 +18,8 @@ export default function WatchMedia() {
   const [media, setMedia] = useState(null);
   const [episodes, setEpisodes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingStream, setLoadingStream] = useState(false);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [embedUrl, setEmbedUrl] = useState(null);
   const [servers, setServers] = useState([]);
   const [activeServer, setActiveServer] = useState(null);
@@ -28,29 +30,52 @@ export default function WatchMedia() {
   const currentEpisode = parseInt(episode, 10) || 1;
 
   useEffect(() => {
+    let isCancelled = false;
+
     const loadMediaAndStream = async () => {
       try {
-        setLoading(true);
-        const [detailRes, streamRes] = await Promise.all([
-          api.Media.getDetail(type, id),
-          api.Media.getStream(type, id, currentSeason, currentEpisode),
-        ]);
-
-        const mediaData = detailRes.data?.data || detailRes.data;
-        const streamData = streamRes.data?.data || streamRes.data;
-
-        setMedia(mediaData);
-
-        if (streamData?.servers) {
-          setServers(streamData.servers);
-          const defaultServer = streamData.servers[0];
-          setActiveServer(defaultServer);
-          setEmbedUrl(defaultServer.url);
+        if (!media || media.id !== parseInt(id, 10)) {
+          setLoading(true);
+        } else {
+          setLoadingStream(true);
         }
 
-        if (isTv) {
-          const epRes = await api.Media.getEpisodes(id, currentSeason);
-          setEpisodes(epRes.data?.data || []);
+        const promises = [
+          api.Media.getStream(type, id, currentSeason, currentEpisode),
+        ];
+
+        const needDetail = !media || media.id !== parseInt(id, 10);
+        if (needDetail) {
+          promises.push(api.Media.getDetail(type, id));
+          if (isTv) {
+            promises.push(api.Media.getEpisodes(id, currentSeason));
+          }
+        }
+
+        const results = await Promise.all(promises);
+        if (isCancelled) return;
+
+        const streamRes = results[0];
+        const streamData = streamRes.data?.data || streamRes.data;
+
+        let mediaData = media;
+        if (needDetail && results.length > 1) {
+          const detailRes = results[1];
+          mediaData = detailRes.data?.data || detailRes.data;
+          setMedia(mediaData);
+
+          if (results.length > 2) {
+            const epRes = results[2];
+            setEpisodes(epRes.data?.data || []);
+          }
+        }
+
+        if (streamData?.servers && streamData.servers.length > 0) {
+          setServers(streamData.servers);
+          // Preserve selected server name if exists in new list
+          const chosen = streamData.servers.find(s => s.server === activeServer?.server) || streamData.servers[0];
+          setActiveServer(chosen);
+          setEmbedUrl(chosen.url);
         }
 
         // Save to Local History with Mode tag
@@ -106,11 +131,17 @@ export default function WatchMedia() {
       } catch (err) {
         console.error('Failed to load media or stream:', err);
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+          setLoadingStream(false);
+        }
       }
     };
 
     loadMediaAndStream();
+    return () => {
+      isCancelled = true;
+    };
   }, [type, id, currentSeason, currentEpisode, mode]);
 
   const handleServerChange = (server) => {
@@ -157,13 +188,26 @@ export default function WatchMedia() {
           <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/10 relative">
             {embedUrl ? (
               <VideoPlayer
+                key={`${activeServer?.server}-${currentSeason}-${currentEpisode}`}
                 url={embedUrl}
                 isEmbed={true}
                 startTime={resumeTimeParam ? parseInt(resumeTimeParam, 10) : 0}
+                onEnded={() => {
+                  if (hasNextEpisode) {
+                    navigate(`/watch-media/tv/${id}/${currentSeason}/${nextEpisodeNum}`);
+                  }
+                }}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400">
                 Loading stream...
+              </div>
+            )}
+
+            {loadingStream && (
+              <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center z-30 transition-all">
+                <div className="w-8 h-8 border-3 border-[#8B5CF6] border-t-transparent rounded-full animate-spin mb-2"></div>
+                <p className="text-white text-xs font-semibold">Loading episode stream...</p>
               </div>
             )}
           </div>
@@ -228,47 +272,88 @@ export default function WatchMedia() {
         {/* Sidebar: Episodes List for TV Series */}
         <div className="lg:col-span-1 flex flex-col gap-4">
           {isTv ? (
-            <div className="bg-[#13131a] border border-[#26263A] rounded-2xl p-4 flex flex-col max-h-[700px]">
+            <div className="bg-[#13131a] border border-[#26263A] rounded-2xl p-4 flex flex-col max-h-[720px]">
               <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/5">
                 <h3 className="text-white text-sm font-bold flex items-center gap-2">
                   <Tv size={16} className="text-[#8B5CF6]" />
-                  <span>Season {currentSeason} Episodes</span>
+                  <span>Season {currentSeason}</span>
                 </h3>
-                <span className="text-xs text-gray-500 font-mono font-bold">
-                  {episodes.length} Total
-                </span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center bg-[#1a1a2e] rounded-lg p-0.5 border border-white/5">
+                    <button
+                      onClick={() => setViewMode('grid')}
+                      className={`p-1 rounded ${viewMode === 'grid' ? 'bg-[#8B5CF6] text-white' : 'text-gray-400 hover:text-white'}`}
+                      title="Grid View"
+                    >
+                      <LayoutGrid size={14} />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={`p-1 rounded ${viewMode === 'list' ? 'bg-[#8B5CF6] text-white' : 'text-gray-400 hover:text-white'}`}
+                      title="List View"
+                    >
+                      <List size={14} />
+                    </button>
+                  </div>
+                  <span className="text-xs text-gray-500 font-mono font-bold">
+                    {episodes.length} Eps
+                  </span>
+                </div>
               </div>
 
-              <div className="overflow-y-auto space-y-2 flex-grow pr-1 custom-scrollbar">
-                {episodes.map(ep => {
-                  const isCurrent = ep.episodeNumber === currentEpisode;
-                  return (
-                    <Link
-                      key={ep.id}
-                      to={`/watch-media/tv/${id}/${currentSeason}/${ep.episodeNumber}`}
-                      className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${
-                        isCurrent
-                          ? 'bg-[#8B5CF6] text-white shadow-md'
-                          : 'bg-[#1a1a2e] text-gray-300 hover:bg-[#252540] hover:text-white border border-transparent hover:border-[#2D2D44]'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-black/40 flex items-center justify-center font-mono font-bold text-xs flex-shrink-0">
-                        {ep.episodeNumber}
-                      </div>
-                      <div className="flex-grow min-w-0">
-                        <p className="text-xs font-semibold truncate leading-snug">
-                          {ep.title}
-                        </p>
-                        {ep.runtime > 0 && (
-                          <span className={`text-[10px] ${isCurrent ? 'text-white/80' : 'text-gray-500'}`}>
-                            {ep.runtime} min
-                          </span>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
+              {viewMode === 'grid' ? (
+                <div className="overflow-y-auto pr-1 custom-scrollbar">
+                  <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-4 gap-2">
+                    {episodes.map(ep => {
+                      const isCurrent = ep.episodeNumber === currentEpisode;
+                      return (
+                        <Link
+                          key={ep.id}
+                          to={`/watch-media/tv/${id}/${currentSeason}/${ep.episodeNumber}`}
+                          className={`flex items-center justify-center py-2.5 rounded-xl font-mono text-xs font-bold transition-all ${
+                            isCurrent
+                              ? 'bg-[#8B5CF6] text-white shadow-lg shadow-[#8B5CF6]/30 border border-[#8B5CF6]'
+                              : 'bg-[#1a1a2e] text-gray-400 hover:bg-[#252540] hover:text-white border border-[#2D2D44]'
+                          }`}
+                        >
+                          {ep.episodeNumber}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-y-auto space-y-2 flex-grow pr-1 custom-scrollbar">
+                  {episodes.map(ep => {
+                    const isCurrent = ep.episodeNumber === currentEpisode;
+                    return (
+                      <Link
+                        key={ep.id}
+                        to={`/watch-media/tv/${id}/${currentSeason}/${ep.episodeNumber}`}
+                        className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${
+                          isCurrent
+                            ? 'bg-[#8B5CF6] text-white shadow-md'
+                            : 'bg-[#1a1a2e] text-gray-300 hover:bg-[#252540] hover:text-white border border-transparent hover:border-[#2D2D44]'
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-black/40 flex items-center justify-center font-mono font-bold text-xs flex-shrink-0">
+                          {ep.episodeNumber}
+                        </div>
+                        <div className="flex-grow min-w-0">
+                          <p className="text-xs font-semibold truncate leading-snug">
+                            {ep.title}
+                          </p>
+                          {ep.runtime > 0 && (
+                            <span className={`text-[10px] ${isCurrent ? 'text-white/80' : 'text-gray-500'}`}>
+                              {ep.runtime} min
+                            </span>
+                          )}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-[#13131a] border border-[#26263A] rounded-2xl p-4">

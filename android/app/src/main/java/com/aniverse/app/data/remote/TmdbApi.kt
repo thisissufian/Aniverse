@@ -190,34 +190,34 @@ class TmdbApi(
         val isMovie = type == "movie"
         return listOf(
             ServerItem(
-                name = "HD-1 (VidLink)",
+                name = "HD-1 (VixSrc)",
+                linkId = if (isMovie) "https://vixsrc.to/movie/$id?primaryColor=8B5CF6&secondaryColor=13131a" else "https://vixsrc.to/tv/$id/$season/$episode?primaryColor=8B5CF6&secondaryColor=13131a",
+                type = "sub",
+                serverId = "vixsrc"
+            ),
+            ServerItem(
+                name = "HD-2 (VsEmbed)",
+                linkId = if (isMovie) "https://vsembed.ru/embed/movie/$id" else "https://vsembed.ru/embed/tv/$id/$season-$episode",
+                type = "sub",
+                serverId = "vsembed"
+            ),
+            ServerItem(
+                name = "HD-3 (VidLink)",
                 linkId = if (isMovie) "https://vidlink.pro/movie/$id?primaryColor=8B5CF6&secondaryColor=13131a&iconColor=ffffff" else "https://vidlink.pro/tv/$id/$season/$episode?primaryColor=8B5CF6&secondaryColor=13131a&iconColor=ffffff",
                 type = "sub",
                 serverId = "vidlink"
             ),
             ServerItem(
-                name = "HD-2 (MultiEmbed)",
+                name = "HD-4 (AnyEmbed)",
+                linkId = if (isMovie) "https://anyembed.xyz/embed/tmdb-movie-$id" else "https://anyembed.xyz/embed/tmdb-tv-$id-$season-$episode",
+                type = "sub",
+                serverId = "anyembed"
+            ),
+            ServerItem(
+                name = "HD-5 (MultiEmbed)",
                 linkId = if (isMovie) "https://multiembed.mov/?video_id=$id&tmdb=1" else "https://multiembed.mov/?video_id=$id&tmdb=1&s=$season&e=$episode",
                 type = "sub",
                 serverId = "multiembed"
-            ),
-            ServerItem(
-                name = "HD-3 (AutoEmbed)",
-                linkId = if (isMovie) "https://autoembed.co/movie/tmdb/$id" else "https://autoembed.co/tv/tmdb/$id-$season-$episode",
-                type = "sub",
-                serverId = "autoembed"
-            ),
-            ServerItem(
-                name = "HD-4 (2Embed)",
-                linkId = if (isMovie) "https://www.2embed.cc/embed/$id" else "https://www.2embed.cc/embedtv/$id&s=$season&e=$episode",
-                type = "sub",
-                serverId = "2embed"
-            ),
-            ServerItem(
-                name = "HD-5 (VidSrc)",
-                linkId = if (isMovie) "https://vidsrc.pm/embed/movie?tmdb=$id" else "https://vidsrc.pm/embed/tv?tmdb=$id&season=$season&episode=$episode",
-                type = "sub",
-                serverId = "vidsrc-pm"
             )
         )
     }
