@@ -98,24 +98,52 @@ The UI adheres strictly to the AniWave dark theme design tokens:
 
 ## 🔮 Future Roadmap (Phase 3 & Beyond)
 
-### Phase 3: Multitasking, Offline Downloads & Release Hardening
-1. **Picture-in-Picture (PiP) Multitasking**:
-   - Integrate `enterPictureInPictureMode()` on activity pause so users can keep watching anime in a floating window while multitasking.
-2. **Offline Download Manager**:
-   - Utilize `androidx.work:work-runtime-ktx` (WorkManager) for background video segment downloading.
-   - Encrypted local cache for watching episodes with 0 internet connection.
-3. **Release Optimization & Minification**:
-   - Enable R8 code shrinking and ProGuard resource optimization.
-   - Target production APK size under **15 MB**.
-   - Generate signed release APK keystore.
+### ✅ Phase 3: Multitasking, Production Optimization & Branding (Completed)
+- **Picture-in-Picture (PiP) Multitasking**:
+  - `enterPictureInPictureMode()` integrated into `MainActivity.kt` (`onUserLeaveHint`) and top-bar button in `PlayerScreen.kt`.
+  - Seamless auto-PiP when navigating to the Android home screen or app switcher.
+- **R8 Minification & Size Slashed to 3.68 MB**:
+  - Full ProGuard shrinking and ABI splits (`arm64-v8a` & `armeabi-v7a`).
+  - Minified production APK size reduced from 22.26 MB down to **3.68 MB** (well below the 15 MB limit).
+- **Custom One Piece Pirate Branding**:
+  - Generated and packaged high-resolution app icon mipmaps (`mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) and adaptive icon foregrounds.
+- **GitHub Distribution**:
+  - Released APKs attached directly to GitHub Release `v1.0.1` and linked in `README.md`.
 
-### Phase 4: Social & Ecosystem Features
-1. **AniList OAuth Sync**:
-   - One-tap login to sync progress directly with users' online AniList profiles.
-2. **Android TV & Leanback Support**:
-   - Adapt Compose UI for D-Pad navigation and 10-foot television screens.
+---
+
+## 🔮 Active Roadmap: Seamless Cross-Device Sync & Polish
+
+### 🌟 Phase 4: Google Drive AppData Sync (Cross-Device Cloud Save)
+A 100% serverless, private cross-device sync mechanism between **Desktop (Electron)** and **Mobile (Android)**:
+1. **Google OAuth 2.0 (`drive.appdata` Scope)**:
+   - Uses the user's personal, hidden Google Drive Application Data folder (`appDataFolder`).
+   - Requires 0 external database servers, 0 monthly hosting costs, and 100% private to the user.
+2. **Unified Data Schema (`aniverse_sync.json`)**:
+   - **Exact Second Timestamps**: Full playback positions (`positionMs` & `durationMs`) for every episode.
+   - **Universal Watch History**: Seamlessly resume watching on mobile exactly where you paused on PC.
+   - **Custom Watchlists**: Custom user-named lists (e.g. *Watching*, *Favorites*, *Plan to Watch*).
+   - **User Settings**: Auto-skip intro/outro preferences and audio language choices.
+3. **Conflict Resolution**:
+   - Two-way timestamp synchronization using Last-Write-Wins (LWW) based on `updatedAt` timestamps.
+
+### 🛠️ Immediate Foundations (Phase 4A Prerequisites)
+1. **Watchlist Bookmark Toggle in UI**:
+   - Add bookmark icon toggle button on `PlayerScreen.kt` top bar and `AnimeCard.kt` to easily save/remove shows in the SQLite database.
+2. **Persistent Settings in Profile**:
+   - Store `autoSkipIntro`, `autoPlayNext`, and `preferDub` permanently in `SharedPreferences`.
+3. **Auto-Play Next Episode**:
+   - Listen for ExoPlayer playback completion to automatically advance to the next episode.
+4. **Next / Prev Episode Player Buttons**:
+   - Add quick navigation arrows directly on the player HUD overlay.
+
+### 📦 Future Ecosystem Features
+1. **AniList OAuth (Optional Community Tracking)**:
+   - Sync episode counts and scores directly with public AniList accounts.
+2. **Offline Download Manager**:
+   - Download video segments using Android `WorkManager` for 100% offline playback.
 3. **Chromecast & Miracast Casting**:
-   - Cast streaming video to Google TV, Chromecast, and smart televisions.
+   - Stream video directly from phone to Google TV and Chromecast devices.
 
 ---
 
