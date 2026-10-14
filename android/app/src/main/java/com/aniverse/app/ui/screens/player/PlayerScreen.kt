@@ -1,15 +1,19 @@
 package com.aniverse.app.ui.screens.player
 
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.media.AudioManager
+import android.os.Build
+import android.util.Rational
 import android.view.OrientationEventListener
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -65,6 +69,45 @@ import com.aniverse.app.util.PipController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val ENHANCED_BRIDGE_JS: String = """
+!function(){
+    "use strict";
+    try {
+        Object.defineProperty(document, 'pictureInPictureEnabled', {
+            get: function() { return true; },
+            configurable: true
+        });
+        if (window.HTMLVideoElement && !HTMLVideoElement.prototype.__aniversePipPatched) {
+            HTMLVideoElement.prototype.__aniversePipPatched = true;
+            HTMLVideoElement.prototype.requestPictureInPicture = function() {
+                try {
+                    window.parent.postMessage({ megaCommand: 'pip' }, '*');
+                } catch(e) {}
+                return Promise.resolve();
+            };
+        }
+    } catch(e) {}
+
+    function isPipTarget(el) {
+        if (!el || !el.closest) return false;
+        return !!el.closest(".jw-icon-pip, .jw-svg-icon-pip, .jw-icon-floating, .jw-svg-icon-floating, [aria-label*='Picture in Picture'], [aria-label*='Picture in picture'], [aria-label*='PiP'], [aria-label*='pip'], [aria-label*='Floating'], [aria-label*='floating'], [aria-label*='Mini'], [aria-label*='mini'], .art-control-pip, [data-index='pip'], button[title*='Picture in Picture'], button[title*='PiP'], button[title*='Mini']");
+    }
+
+    document.addEventListener("click", function(e) {
+        if (isPipTarget(e.target)) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            try {
+                window.parent.postMessage({ megaCommand: 'pip' }, '*');
+            } catch(err) {}
+        }
+    }, true);
+
+    if(!window.__megaEmbedFsBound&&(window.__megaEmbedFsBound=!0,window.parent!==window&&(e=navigator.userAgent||"",t=/iP(ad|hone|od)/.test(e)||-1!==e.indexOf("Mac")&&navigator.maxTouchPoints>1,n=/AppleWebKit/.test(e)&&!/Chrome|CriOS|Chromium|Edg|OPR|Android/.test(e),!t&&!n))){var e,t,n,r=!1,o=!1,a=0,i=0,c=!1;window.addEventListener("message",function(e){if(e.source===window.parent){var t=function(e){if(null==e)return null;if("object"==typeof e)return e;if("string"==typeof e)try{return JSON.parse(e)}catch(e){return null}return null}(e.data);t&&"boolean"==typeof t.megaFullscreenState&&w(t.megaFullscreenState)}}),s({megaCommand:"getFullscreenState"})}function l(e){if(!e||"string"!=typeof e)return!1;try{return-1!==new URL(e).hostname.toLowerCase().indexOf("anikoto")}catch(e){return!1}}function u(){if("function"!=typeof jwplayer)return null;try{var e=jwplayer("megaplay-player");if(e&&"function"==typeof e.getContainer)return e;if((e=jwplayer())&&"function"==typeof e.getContainer)return e}catch(e){}return null}function s(e){try{window.parent.postMessage(e,"*")}catch(e){}}function f(e){o=!!e,function(){if(!document.getElementById("mega-fs-icon-style")){var e=document.createElement("style");e.id="mega-fs-icon-style",e.textContent=".jwplayer.mega-parent-fs .jw-svg-icon-fullscreen-on{display:none!important}.jwplayer.mega-parent-fs .jw-svg-icon-fullscreen-off{display:block!important}",(document.head||document.documentElement).appendChild(e)}}();var t=function(){var e=u(),t=null;try{t=e&&e.getContainer&&e.getContainer()}catch(e){}return t||(t=document.getElementById("megaplay-player")),t}();t&&t.classList.toggle("mega-parent-fs",o);var n=u();try{n&&"function"==typeof n.resize&&n.resize()}catch(e){}}function d(){var e=u();if(e&&!e.__megaFsApiPatched){e.__megaFsApiPatched=!0;var t=e.setFullscreen,n=e.getFullscreen;"function"==typeof t&&(e.setFullscreen=function(){return r?e:t.apply(e,arguments)}),"function"==typeof n&&(e.getFullscreen=function(){return r?o:n.call(e)});try{"function"!=typeof e.on||e.__megaFsEvtBound||(e.__megaFsEvtBound=!0,e.on("ready",function(){r&&f(o)}))}catch(e){}}}function p(e){return!(!e||!e.closest)&&!!e.closest(".jw-icon-fullscreen, .jw-svg-icon-fullscreen, .jw-svg-icon-fullscreen-on, .jw-svg-icon-fullscreen-off, [aria-label='Fullscreen'], [aria-label='Exit Fullscreen'], [aria-label='Exit fullscreen']")}function g(e){return!(!e||!e.closest)&&(!p(e)&&!function(e){return!(!e||!e.closest||!e.closest(".jw-controls, .jw-controlbar, .jw-button-container, .jw-settings-menu, .jw-skip, .jw-tooltip, .botright, #overlay-control-megaplay a"))}(e)&&!!e.closest("#megaplay-player, .jwplayer, .jw-wrapper, .jw-media, .jw-overlays, .jw-display, video, canvas"))}function m(){var e;(e=Date.now())-a<450||(a=e,0)||(f(!o),s({megaCommand:"toggleFullscreen"}))}function y(e){e.preventDefault(),e.stopPropagation(),e.stopImmediatePropagation&&e.stopImmediatePropagation()}function w(e){r=!0,d(),c||(c=!0,document.addEventListener("click",function(e){if(r)return p(e.target)?(y(e),void m()):void(g(e.target)&&2===e.detail&&(y(e),m()))},!0),document.addEventListener("dblclick",function(e){r&&g(e.target)&&y(e)},!0),document.addEventListener("pointerup",function(e){if(r&&"mouse"!==e.pointerType&&g(e.target)){var t=Date.now();if(t-i<320)return y(e),i=0,void m();i=t}},!0),document.addEventListener("keydown",function(e){if(r){var t=e.target;t&&-1!==["INPUT","TEXTAREA","SELECT"].indexOf(t.tagName)||"f"!==e.key&&"F"!==e.key||e.repeat||(e.preventDefault(),e.stopImmediatePropagation(),m())}},!0)),f(e),setTimeout(d,500),setTimeout(d,2e3)}
+}();
+"""
 
 class WebAppInterface(
     private val onToggleFullscreen: () -> Unit,
@@ -146,9 +189,6 @@ fun PlayerScreen(
     var isLoadingStream by remember { mutableStateOf(false) }
     var streamError by remember { mutableStateOf<String?>(null) }
 
-    var showSkipIntro by remember { mutableStateOf(false) }
-    var showSkipOutro by remember { mutableStateOf(false) }
-
     // Chunking for large series (30 episodes per tab)
     val chunkSize = 30
     var selectedChunkIndex by remember { mutableStateOf(0) }
@@ -212,8 +252,8 @@ fun PlayerScreen(
             override fun onOrientationChanged(orientation: Int) {
                 if (orientation == ORIENTATION_UNKNOWN) return
 
-                // If minimized to floating mini-player or locked by user, do NOT rotate automatically
-                if (isMinimized || isOrientationLocked) return
+                // If minimized to floating mini-player, in system PiP, or locked by user, do NOT rotate automatically
+                if (isMinimized || PipController.isInPipMode || isOrientationLocked) return
 
                 val isLandscape = (orientation in 65..115) || (orientation in 245..295)
                 val isPortrait = (orientation in 340..360) || (orientation in 0..20) || (orientation in 160..200)
@@ -252,7 +292,7 @@ fun PlayerScreen(
     }
 
     // Handle back button (exits fullscreen or minimizes to floating mini-player)
-    BackHandler(enabled = !isMinimized) {
+    BackHandler(enabled = !isMinimized && !PipController.isInPipMode) {
         if (isFullscreen) {
             setFullscreenMode(false)
         } else {
@@ -473,17 +513,11 @@ fun PlayerScreen(
                 }
 
                 introInterval?.let { intro ->
-                    showSkipIntro = currentPlayPositionMs in intro.start..intro.end
                     if (appPrefs.autoSkipIntro && currentPlayPositionMs in intro.start..(intro.start + 2500)) {
                         val skipTarget = intro.end + 1000
                         currentPlayPositionMs = skipTarget
                         if (isDirectStream) exoPlayer.seekTo(skipTarget)
-                        showSkipIntro = false
                     }
-                }
-
-                outroInterval?.let { outro ->
-                    showSkipOutro = currentPlayPositionMs in outro.start..outro.end
                 }
 
                 com.aniverse.app.util.NowPlayingController.updateProgress(currentPlayPositionMs, totalPlayDurationMs)
@@ -741,11 +775,25 @@ fun PlayerScreen(
                                     },
                                     onTriggerMiniPlayer = {
                                         scope.launch(Dispatchers.Main) {
-                                            onMinimize()
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity != null) {
+                                                try {
+                                                    val params = PictureInPictureParams.Builder()
+                                                        .setAspectRatio(Rational(16, 9))
+                                                        .build()
+                                                    val entered = activity.enterPictureInPictureMode(params)
+                                                    if (!entered) {
+                                                        onMinimize()
+                                                    }
+                                                } catch (e: Exception) {
+                                                    onMinimize()
+                                                }
+                                            } else {
+                                                onMinimize()
+                                            }
                                         }
                                     },
                                     canTriggerMiniPlayer = {
-                                        !isMinimized && (System.currentTimeMillis() - streamLoadStartTime > 2500L)
+                                        !isMinimized && !PipController.isInPipMode && (System.currentTimeMillis() - streamLoadStartTime > 1500L)
                                     }
                                 ),
                                 "AndroidBridge"
@@ -758,6 +806,18 @@ fun PlayerScreen(
                                         return false
                                     }
                                     return true
+                                }
+
+                                override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                                    val url = request?.url?.toString() ?: return null
+                                    if (url.contains("parent-fullscreen-bridge")) {
+                                        return WebResourceResponse(
+                                            "application/javascript",
+                                            "UTF-8",
+                                            ENHANCED_BRIDGE_JS.byteInputStream(Charsets.UTF_8)
+                                        )
+                                    }
+                                    return super.shouldInterceptRequest(view, request)
                                 }
                             }
 
@@ -871,9 +931,9 @@ fun PlayerScreen(
                 }
             }
 
-            // Controls Overlay (Only shown when expanded)
+            // Controls Overlay (Only shown when expanded and not in system PiP)
             AnimatedVisibility(
-                visible = !isMinimized && (showControlsOverlay || isFullscreen),
+                visible = !isMinimized && !PipController.isInPipMode && (showControlsOverlay || isFullscreen),
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.fillMaxSize()
@@ -1039,30 +1099,6 @@ fun PlayerScreen(
                                     Icon(Icons.Filled.SkipNext, contentDescription = "Next Episode", tint = PrimaryViolet)
                                 }
                             }
-                        }
-                    }
-
-                    // Auto Skip Intro Button
-                    AnimatedVisibility(
-                        visible = showSkipIntro,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(16.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                val skipTarget = introInterval?.end ?: 150_000L
-                                exoPlayer.seekTo(skipTarget + 1000)
-                                showSkipIntro = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(Icons.Filled.FastForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Skip Intro", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1289,9 +1325,9 @@ fun PlayerScreen(
                 )
             }
         }
-    } else if (isFullscreen) {
-        // FULLSCREEN LANDSCAPE VIEW
-        Box(modifier = modifier.background(Color.Black)) {
+    } else if (PipController.isInPipMode || isFullscreen) {
+        // FULLSCREEN LANDSCAPE VIEW OR SYSTEM PICTURE-IN-PICTURE (Pure 16:9 player surface)
+        Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
             playerSurface()
         }
     } else {

@@ -37,7 +37,7 @@ fun NavGraph(
             containerColor = DarkCanvas,
             bottomBar = {
                 // Bottom bar with 5 items: Home, Search, History, Watchlist, Profile
-                if (!PlayerManager.isActive || PlayerManager.isMinimized) {
+                if ((!PlayerManager.isActive || PlayerManager.isMinimized) && !com.aniverse.app.util.PipController.isInPipMode) {
                     AniverseBottomBar(navController = navController)
                 }
             },
@@ -171,7 +171,7 @@ fun NavGraph(
                         PlayerManager.close()
                     }
                 },
-                modifier = if (PlayerManager.isMinimized) {
+                modifier = if (PlayerManager.isMinimized && !com.aniverse.app.util.PipController.isInPipMode) {
                     Modifier
                         .align(Alignment.BottomEnd)
                         .navigationBarsPadding()
