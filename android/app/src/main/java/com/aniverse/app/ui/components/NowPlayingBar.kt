@@ -112,7 +112,7 @@ fun NowPlayingBar(
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .fillMaxHeight(),
+                                .wrapContentHeight(),
                             verticalArrangement = Arrangement.Center
                         ) {
                             Text(

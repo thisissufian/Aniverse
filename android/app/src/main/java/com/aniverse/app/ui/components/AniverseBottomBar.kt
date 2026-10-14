@@ -32,6 +32,7 @@ fun AniverseBottomBar(
     val items = listOf(
         Screen.Home,
         Screen.Search,
+        Screen.History,
         Screen.Watchlist,
         Screen.Profile
     )
@@ -41,6 +42,7 @@ fun AniverseBottomBar(
 
     // Hide bottom bar on player screen
     if (currentRoute?.startsWith("player") == true) return
+    if (com.aniverse.app.util.PlayerManager.isActive && !com.aniverse.app.util.PlayerManager.isMinimized) return
 
     Box(
         modifier = modifier
@@ -54,7 +56,7 @@ fun AniverseBottomBar(
                     )
                 )
             )
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
             .navigationBarsPadding()
     ) {
         Row(
@@ -62,7 +64,7 @@ fun AniverseBottomBar(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))
                 .background(DarkSurface.copy(alpha = 0.98f))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -75,6 +77,7 @@ fun AniverseBottomBar(
 
                 Column(
                     modifier = Modifier
+                        .weight(1f)
                         .clip(RoundedCornerShape(16.dp))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -88,7 +91,7 @@ fun AniverseBottomBar(
                                 }
                             }
                         }
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                        .padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(

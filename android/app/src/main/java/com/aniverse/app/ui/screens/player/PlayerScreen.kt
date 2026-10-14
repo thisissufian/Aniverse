@@ -101,7 +101,11 @@ fun PlayerScreen(
     englishTitle: String? = null,
     coverUrl: String = "",
     format: String? = "TV",
-    onBackClick: () -> Unit,
+    isMinimized: Boolean = false,
+    onMinimize: () -> Unit = {},
+    onExpand: () -> Unit = {},
+    onClose: () -> Unit = {},
+    onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -236,9 +240,49 @@ fun PlayerScreen(
         }
     }
 
-    // Handle back button when in fullscreen
-    BackHandler(enabled = isFullscreen) {
-        setFullscreenMode(false)
+    // Handle back button (exits fullscreen, minimizes, or closes)
+    BackHandler(enabled = true) {
+        if (isFullscreen) {
+            setFullscreenMode(false)
+        } else if (!isMinimized) {
+            onMinimize()
+        } else {
+            onClose()
+            onBackClick()
+        }
+    }
+
+    fun togglePlayPause() {
+        val isDirectStream = embedUrl?.endsWith(".m3u8") == true || embedUrl?.endsWith(".mp4") == true
+        if (isDirectStream) {
+            if (exoPlayer.isPlaying) {
+                exoPlayer.pause()
+                PipController.isVideoPlaying = false
+            } else {
+                exoPlayer.play()
+                PipController.isVideoPlaying = true
+            }
+        } else {
+            val newState = !PipController.isVideoPlaying
+            PipController.isVideoPlaying = newState
+            val jsCmd = if (newState) "play" else "pause"
+            webViewInstance?.evaluateJavascript(
+                """
+                (function() {
+                    var iframe = document.getElementById('player-frame');
+                    if (iframe && iframe.contentWindow) {
+                        try {
+                            iframe.contentWindow.postMessage({ command: '$jsCmd' }, '*');
+                            iframe.contentWindow.postMessage({ event: '$jsCmd' }, '*');
+                            iframe.contentWindow.postMessage({ type: '$jsCmd' }, '*');
+                        } catch(e) {}
+                    }
+                })();
+                """.trimIndent(),
+                null
+            )
+        }
+        com.aniverse.app.util.NowPlayingController.setPlaybackState(PipController.isVideoPlaying)
     }
 
     LaunchedEffect(animeId) {
@@ -461,59 +505,70 @@ fun PlayerScreen(
         Box(
             modifier = modifier
                 .background(Color.Black)
-                .clickable { showControlsOverlay = !showControlsOverlay }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onDoubleTap = { offset ->
-                            val screenWidth = size.width
-                            if (offset.x < screenWidth / 2) {
-                                val newPos = (exoPlayer.currentPosition - 10_000).coerceAtLeast(0)
-                                exoPlayer.seekTo(newPos)
-                                seekFeedbackText = "-10s"
-                            } else {
-                                val newPos = (exoPlayer.currentPosition + 10_000).coerceAtMost(exoPlayer.duration)
-                                exoPlayer.seekTo(newPos)
-                                seekFeedbackText = "+10s"
-                            }
-                            scope.launch {
-                                delay(800)
-                                seekFeedbackText = null
-                            }
-                        }
-                    )
+                .clickable {
+                    if (isMinimized) {
+                        onExpand()
+                    } else {
+                        showControlsOverlay = !showControlsOverlay
+                    }
                 }
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onVerticalDrag = { change, dragAmount ->
-                            val screenWidth = size.width
-                            val x = change.position.x
-                            if (x < screenWidth / 2) {
-                                activity?.window?.let { window ->
-                                    val lp = window.attributes
-                                    var currentBrightness = if (lp.screenBrightness < 0) 0.5f else lp.screenBrightness
-                                    currentBrightness = (currentBrightness - (dragAmount / 800f)).coerceIn(0.05f, 1.0f)
-                                    lp.screenBrightness = currentBrightness
-                                    window.attributes = lp
-                                    brightnessFeedback = currentBrightness
-                                }
-                            } else {
-                                val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                                val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                                val delta = if (dragAmount < 0) 1 else -1
-                                val newVol = (currentVol + delta).coerceIn(0, maxVol)
-                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-                                volumeFeedback = newVol.toFloat() / maxVol
+                .then(
+                    if (!isMinimized) {
+                        Modifier
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onDoubleTap = { offset ->
+                                        val screenWidth = size.width
+                                        if (offset.x < screenWidth / 2) {
+                                            val newPos = (exoPlayer.currentPosition - 10_000).coerceAtLeast(0)
+                                            exoPlayer.seekTo(newPos)
+                                            seekFeedbackText = "-10s"
+                                        } else {
+                                            val newPos = (exoPlayer.currentPosition + 10_000).coerceAtMost(exoPlayer.duration)
+                                            exoPlayer.seekTo(newPos)
+                                            seekFeedbackText = "+10s"
+                                        }
+                                        scope.launch {
+                                            delay(800)
+                                            seekFeedbackText = null
+                                        }
+                                    }
+                                )
                             }
-                        },
-                        onDragEnd = {
-                            scope.launch {
-                                delay(1000)
-                                volumeFeedback = null
-                                brightnessFeedback = null
+                            .pointerInput(Unit) {
+                                detectVerticalDragGestures(
+                                    onVerticalDrag = { change, dragAmount ->
+                                        val screenWidth = size.width
+                                        val x = change.position.x
+                                        if (x < screenWidth / 2) {
+                                            activity?.window?.let { window ->
+                                                val lp = window.attributes
+                                                var currentBrightness = if (lp.screenBrightness < 0) 0.5f else lp.screenBrightness
+                                                currentBrightness = (currentBrightness - (dragAmount / 800f)).coerceIn(0.05f, 1.0f)
+                                                lp.screenBrightness = currentBrightness
+                                                window.attributes = lp
+                                                brightnessFeedback = currentBrightness
+                                            }
+                                        } else {
+                                            val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                            val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                                            val delta = if (dragAmount < 0) 1 else -1
+                                            val newVol = (currentVol + delta).coerceIn(0, maxVol)
+                                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                            volumeFeedback = newVol.toFloat() / maxVol
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        scope.launch {
+                                            delay(1000)
+                                            volumeFeedback = null
+                                            brightnessFeedback = null
+                                        }
+                                    }
+                                )
                             }
-                        }
-                    )
-                }
+                    } else Modifier
+                )
         ) {
             val isDirectStream = embedUrl?.endsWith(".m3u8") == true || embedUrl?.endsWith(".mp4") == true
 
@@ -774,15 +829,15 @@ fun PlayerScreen(
                 }
             }
 
-            // Controls Overlay
+            // Controls Overlay (Only shown when expanded)
             AnimatedVisibility(
-                visible = showControlsOverlay || isFullscreen,
+                visible = !isMinimized && (showControlsOverlay || isFullscreen),
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.fillMaxSize()
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Top Bar (Back button, Anime/Episode Title, PiP button)
+                    // Top Bar (Minimize button, Anime/Episode Title, PiP button)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -799,8 +854,7 @@ fun PlayerScreen(
                                 if (isFullscreen) {
                                     setFullscreenMode(false)
                                 } else {
-                                    exoPlayer.stop()
-                                    onBackClick()
+                                    onMinimize()
                                 }
                             },
                             modifier = Modifier
@@ -808,8 +862,8 @@ fun PlayerScreen(
                                 .background(DarkSurface.copy(alpha = 0.8f))
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
+                                imageVector = if (isFullscreen) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.KeyboardArrowDown,
+                                contentDescription = if (isFullscreen) "Exit Fullscreen" else "Minimize",
                                 tint = TextPrimary
                             )
                         }
@@ -1069,25 +1123,100 @@ fun PlayerScreen(
         }
     }
 
-    if (isFullscreen) {
-        // FULLSCREEN LANDSCAPE VIEW
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    val playerSurface = remember {
+        movableContentOf {
             VideoPlayerSurface(modifier = Modifier.fillMaxSize())
+        }
+    }
+
+    if (isMinimized) {
+        // YOUTUBE-STYLE FLOATING MINI-PLAYER WINDOW
+        Card(
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Black),
+            elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+            modifier = modifier
+                .width(204.dp)
+                .aspectRatio(16f / 9f)
+                .border(1.dp, PrimaryViolet.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                .clickable { onExpand() }
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // 1. Live video player surface playing continuously!
+                playerSurface()
+
+                // 2. Play / Pause Button (Top-Left, YouTube style!)
+                IconButton(
+                    onClick = { togglePlayPause() },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.65f))
+                ) {
+                    Icon(
+                        imageVector = if (PipController.isVideoPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (PipController.isVideoPlaying) "Pause" else "Play",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                // 3. Close Button ('X') (Top-Right, YouTube style!)
+                IconButton(
+                    onClick = { onClose() },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.65f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "Close",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                // 4. Red progress bar at bottom of mini-player card (YouTube style!)
+                val progress = if (totalPlayDurationMs > 0) {
+                    (currentPlayPositionMs.toFloat() / totalPlayDurationMs.toFloat()).coerceIn(0f, 1f)
+                } else 0f
+
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.5.dp)
+                        .align(Alignment.BottomCenter),
+                    color = AccentRed,
+                    trackColor = Color.White.copy(alpha = 0.3f)
+                )
+            }
+        }
+    } else if (isFullscreen) {
+        // FULLSCREEN LANDSCAPE VIEW
+        Box(modifier = modifier.background(Color.Black)) {
+            playerSurface()
         }
     } else {
         // PORTRAIT VIEW (16:9 player surface with episode list below)
         Column(
             modifier = modifier
-                .fillMaxSize()
                 .background(DarkCanvas)
                 .statusBarsPadding()
         ) {
             // 1. Top 16:9 Video Player
-            VideoPlayerSurface(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
-            )
+            ) {
+                playerSurface()
+            }
 
             // 2. Scrollable Anime Details & Episode Selector
             LazyColumn(

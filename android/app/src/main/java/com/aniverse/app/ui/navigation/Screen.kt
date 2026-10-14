@@ -11,6 +11,9 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.ui.graphics.vector.ImageVector
 
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.outlined.History
+
 sealed class Screen(
     val route: String,
     val title: String,
@@ -19,6 +22,7 @@ sealed class Screen(
 ) {
     object Home : Screen("home", "Home", Icons.Filled.Home, Icons.Outlined.Home)
     object Search : Screen("search", "Search", Icons.Filled.Search, Icons.Outlined.Search)
+    object History : Screen("history", "History", Icons.Filled.History, Icons.Outlined.History)
     object Watchlist : Screen("watchlist", "Watchlist", Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder)
     object Profile : Screen("profile", "Profile", Icons.Filled.Person, Icons.Outlined.Person)
 
