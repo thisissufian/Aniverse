@@ -1,15 +1,15 @@
-## 🌌 Aniverse v1.1.0 — Native Android Launch & Google Drive Cloud Sync
+## 🌌 Aniverse v1.1.0 — Native Android Launch, Floating Mini-Player & Google Drive Sync
 
-We are thrilled to release **Aniverse v1.1.0**, featuring our brand-new standalone **Native Android Mobile App** and seamless **Cross-Device Google Drive Cloud Sync**!
+We are thrilled to release **Aniverse v1.1.0**, featuring our brand-new standalone **Native Android Mobile App**, **YouTube-Style Floating Mini-Player**, dedicated **Watch History Navbar**, and seamless **Cross-Device Google Drive Cloud Sync**!
 
 ---
 
-### 📦 Download Android APKs
+### 📦 Download Android APKs (v1.1.0)
 
-| Architecture | Package | Description | Size |
+| Architecture | Package | Description | Exact Size |
 | :--- | :--- | :--- | :--- |
-| **ARM64 (64-bit)** | **[`Aniverse-v1.0.0-arm64.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.1.0/Aniverse-v1.0.0-arm64.apk)** | **Recommended** for modern Android phones and tablets | **3.95 MB** |
-| **ARMv7 (32-bit)** | **[`Aniverse-v1.0.0-armv7.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.1.0/Aniverse-v1.0.0-armv7.apk)** | For older 32-bit devices and legacy emulators | **3.95 MB** |
+| **ARM64 (64-bit)** | **[`Aniverse-v1.1.0-arm64.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.1.0/Aniverse-v1.1.0-arm64.apk)** | **Recommended** for modern Android phones and tablets | **3.99 MB** (4,188,271 bytes) |
+| **ARMv7 (32-bit)** | **[`Aniverse-v1.1.0-armv7.apk`](https://github.com/thisissufian/Aniverse/releases/download/v1.1.0/Aniverse-v1.1.0-armv7.apk)** | For older 32-bit devices and legacy emulators | **3.99 MB** (4,188,271 bytes) |
 
 > 💡 **Android Installation Note**: Since Aniverse is an open-source project without a commercial signing certificate, Android may show an *"Install from unknown sources"* or *"Unrecognized app"* prompt. Tap **Settings** $\rightarrow$ **Allow from this source** $\rightarrow$ **Install anyway**.
 
@@ -18,12 +18,20 @@ We are thrilled to release **Aniverse v1.1.0**, featuring our brand-new standalo
 ### 🌟 What's New in v1.1.0
 
 #### 📱 1. Standalone Native Android Mobile App
-- **Ultralight 3.95 MB APK**: Engineered with **Native Kotlin**, **Jetpack Compose (BOM 2024.06.00)**, and **Media3 ExoPlayer**. Full R8 ProGuard code & resource minification.
+- **Ultralight 3.99 MB APK**: Engineered with **Native Kotlin**, **Jetpack Compose (BOM 2024.06.00)**, and **Media3 ExoPlayer**. Full R8 ProGuard code & resource minification.
+- **YouTube-Style In-App Floating Mini-Player**:
+  - Video **continues playing live** in a floating 16:9 window in the bottom-right corner while you browse Home, Search, History, Watchlist, or Profile.
+  - Quick Play/Pause button, Close (`X`) button, and real-time red progress bar.
+  - Powered by Jetpack Compose `movableContentOf` with zero reloads, zero buffering, and zero stutter.
+  - Tap the floating mini-player anytime to expand smoothly back into full view.
+- **Dedicated Watch History Tab in Bottom Navbar**:
+  - 5-item navigation bar: **Home**, **Search**, **History**, **Watchlist**, **Profile**.
+  - YouTube-style watch history with exact timestamps (`14:25 / 24:00`), completion badges, red progress bars, and one-tap resume.
 - **YouTube-Smooth 120Hz Gesture Controls**:
   - **Double-Tap Seek**: Rewind 10s on the left, forward 10s on the right with animated HUD pills.
   - **Vertical Edge Swiping**: Left side adjusts screen brightness; right side adjusts media volume.
-  - **Quick Episode Navigation**: Floating Previous $\vert\blacktriangleleft\blacktriangleleft$ and Next $\blacktriangleright\blacktriangleright\vert$ buttons.
-- **Picture-in-Picture (PiP)**: Keep watching in a floating mini-player while multitasking, with automatic OS transition on swipe-to-home.
+  - **Orientation Lock**: Lock landscape mode with on-screen toggle.
+- **Picture-in-Picture (PiP)**: Keep watching in floating OS mini-player when exiting the app.
 - **Auto-Skip Intro & Outro**: Automatic detection and skip button for opening and ending songs.
 - **Auto-Play Next Episode**: Seamless binge-watching automatically advancing to the next episode when playback ends.
 - **Local SQLite Persistence**: Full offline tracking of exact second timestamps and customizable watchlists.

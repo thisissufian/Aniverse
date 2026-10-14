@@ -297,7 +297,7 @@ fun ProfileScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Version 1.0.0 (Jetpack Compose + ExoPlayer)",
+                    text = "Version 1.1.0 • 3.99 MB APK (Jetpack Compose + ExoPlayer)",
                     color = TextMuted,
                     fontSize = 12.sp
                 )

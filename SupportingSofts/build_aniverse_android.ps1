@@ -23,11 +23,14 @@ if (Test-Path $ReleaseDir) {
 
     Get-ChildItem -Path $ReleaseDir -Filter "*.apk" | ForEach-Object {
         $sizeMB = [math]::Round($_.Length / 1MB, 2)
-        Write-Host "  -> $($_.Name) ($sizeMB MB) at $($_.FullName)" -ForegroundColor Green
+        $sizeBytes = $_.Length
+        Write-Host "  -> $($_.Name) ($sizeMB MB / $sizeBytes bytes) at $($_.FullName)" -ForegroundColor Green
 
         if ($_.Name -like "*arm64*") {
+            Copy-Item $_.FullName (Join-Path $distDir "Aniverse-v1.1.0-arm64.apk") -Force
             Copy-Item $_.FullName (Join-Path $distDir "Aniverse-v1.0.0-arm64.apk") -Force
         } elseif ($_.Name -like "*v7a*") {
+            Copy-Item $_.FullName (Join-Path $distDir "Aniverse-v1.1.0-armv7.apk") -Force
             Copy-Item $_.FullName (Join-Path $distDir "Aniverse-v1.0.0-armv7.apk") -Force
         }
     }
