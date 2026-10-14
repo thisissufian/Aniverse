@@ -1,9 +1,9 @@
 package com.aniverse.app.data.remote
 
+import android.util.Log
 import com.aniverse.app.data.model.Episode
 import com.aniverse.app.data.model.ServerItem
 import com.aniverse.app.data.model.SkipInterval
-import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,15 +21,14 @@ data class StreamEmbedResult(
 
 class AnikotoResolver(
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
         .followRedirects(true)
         .build()
 ) {
+    private val tag = "AnikotoResolver"
     private val baseUrl = "https://anikototv.to"
-    private val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-
-    private val localServerUrl = "http://10.0.2.2:5000" // Android emulator loopback to PC
+    private val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
     private val headers = mapOf(
         "X-Requested-With" to "XMLHttpRequest",
@@ -43,13 +42,14 @@ class AnikotoResolver(
         return builder.build()
     }
 
-    suspend fun getEpisodes(animeTitle: String, format: String? = "TV"): List<Episode> = withContext(Dispatchers.IO) {
+    suspend fun getEpisodes(
+        primaryTitle: String,
+        secondaryTitle: String? = null,
+        format: String? = "TV"
+    ): List<Episode> = withContext(Dispatchers.IO) {
         try {
-            // First try local server if user has desktop backend running
-            val localEpisodes = tryFetchLocalServerEpisodes(animeTitle)
-            if (localEpisodes.isNotEmpty()) return@withContext localEpisodes
+            Log.d(tag, "Resolving episodes for primary: '$primaryTitle', secondary: '$secondaryTitle', format: '$format'")
 
-            // Step 1: Search anime slug on Anikoto
             val termType = when (format?.uppercase()) {
                 "MOVIE" -> "Movie"
                 "OVA" -> "OVA"
@@ -58,52 +58,77 @@ class AnikotoResolver(
                 else -> "TV"
             }
 
-            val encodedTitle = URLEncoder.encode(animeTitle, "UTF-8")
-            val searchUrl = "$baseUrl/filter?keyword=$encodedTitle&term_type[]=$termType"
+            // Generate search queries to try in order of precision
+            val searchQueries = mutableListOf<String>()
 
-            val searchHtml = client.newCall(newRequest(searchUrl)).execute().use { response ->
-                if (!response.isSuccessful) return@withContext emptyList()
-                response.body?.string() ?: ""
+            // 1. Try English title first (Anikoto search prefers English/International titles)
+            secondaryTitle?.trim()?.takeIf { it.isNotEmpty() }?.let { eng ->
+                searchQueries.add(eng)
             }
 
-            val doc = Jsoup.parse(searchHtml)
+            // 2. Try primary (Romaji) title
+            primaryTitle.trim().takeIf { it.isNotEmpty() && !searchQueries.contains(it) }?.let { rom ->
+                searchQueries.add(rom)
+            }
+
+            // 3. Try stripped titles (remove colons, dashes, season subtitles, brackets)
+            val cleanRegex = Regex("[:\\-–—_()\\[\\]]")
+            secondaryTitle?.let { eng ->
+                val cleaned = eng.replace(cleanRegex, " ").replace(Regex("\\s+"), " ").trim()
+                if (cleaned.isNotEmpty() && !searchQueries.contains(cleaned)) {
+                    searchQueries.add(cleaned)
+                }
+            }
+            val cleanedPrimary = primaryTitle.replace(cleanRegex, " ").replace(Regex("\\s+"), " ").trim()
+            if (cleanedPrimary.isNotEmpty() && !searchQueries.contains(cleanedPrimary)) {
+                searchQueries.add(cleanedPrimary)
+            }
+
             var slug: String? = null
 
-            val watchLinks = doc.select("a[href*=/watch/]")
-            for (element in watchLinks) {
-                val href = element.attr("href")
-                val text = element.text().trim()
-                if (href.isNotEmpty() && text.length > 3) {
-                    val match = Regex("/watch/([^/]+)").find(href)
-                    if (match != null) {
-                        slug = match.groupValues[1]
-                        break
-                    }
+            for (query in searchQueries) {
+                // First attempt: search with format filter (e.g. TV / Movie)
+                slug = findSlugForQuery(query, termType)
+                if (slug != null) {
+                    Log.d(tag, "Found slug '$slug' for query '$query' (with format $termType)")
+                    break
+                }
+
+                // Second attempt: search without format filter
+                slug = findSlugForQuery(query, null)
+                if (slug != null) {
+                    Log.d(tag, "Found slug '$slug' for query '$query' (unfiltered)")
+                    break
                 }
             }
 
-            if (slug == null) return@withContext emptyList()
-
-            // Step 2: Get anime internal data-id
-            val watchUrl = "$baseUrl/watch/$slug/ep-1"
-            val watchHtml = client.newCall(newRequest(watchUrl)).execute().use { response ->
-                if (!response.isSuccessful) return@withContext emptyList()
-                response.body?.string() ?: ""
+            if (slug == null) {
+                Log.w(tag, "No slug found for any query in $searchQueries")
+                return@withContext emptyList()
             }
 
-            val watchDoc = Jsoup.parse(watchHtml)
-            val dataId = watchDoc.select("[data-id][data-fetch]").attr("data-id")
-            if (dataId.isEmpty()) return@withContext emptyList()
+            // Step 2: Get anime internal data-id from watch page
+            var dataId = fetchAnimeDataId(slug)
+            if (dataId == null) {
+                Log.w(tag, "Could not extract data-id from /watch/$slug")
+                return@withContext emptyList()
+            }
 
-            // Step 3: Get episode list
+            // Step 3: Fetch episode list via AJAX endpoint
             val epListUrl = "$baseUrl/ajax/episode/list/$dataId"
             val epListJsonStr = client.newCall(newRequest(epListUrl)).execute().use { response ->
-                if (!response.isSuccessful) return@withContext emptyList()
+                if (!response.isSuccessful) {
+                    Log.e(tag, "Failed to fetch episode list: HTTP ${response.code}")
+                    return@withContext emptyList()
+                }
                 response.body?.string() ?: ""
             }
 
             val json = JsonParser.parseString(epListJsonStr).asJsonObject
-            if (json.get("status")?.asInt != 200) return@withContext emptyList()
+            if (json.get("status")?.asInt != 200) {
+                Log.e(tag, "Anikoto episode list status not 200: $epListJsonStr")
+                return@withContext emptyList()
+            }
 
             val resultHtml = json.get("result")?.asString ?: return@withContext emptyList()
             val epDoc = Jsoup.parse(resultHtml)
@@ -129,10 +154,71 @@ class AnikotoResolver(
                     )
                 )
             }
+
+            Log.d(tag, "Successfully fetched ${episodes.size} episodes for slug '$slug'")
             episodes
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(tag, "Error in getEpisodes", e)
             emptyList()
+        }
+    }
+
+    private fun findSlugForQuery(query: String, termType: String?): String? {
+        return try {
+            val encoded = URLEncoder.encode(query, "UTF-8")
+            val url = if (!termType.isNullOrEmpty()) {
+                val encodedTerm = URLEncoder.encode(termType, "UTF-8")
+                "$baseUrl/filter?keyword=$encoded&term_type[]=$encodedTerm"
+            } else {
+                "$baseUrl/filter?keyword=$encoded"
+            }
+
+            val html = client.newCall(newRequest(url)).execute().use { response ->
+                if (!response.isSuccessful) return null
+                response.body?.string() ?: ""
+            }
+
+            val doc = Jsoup.parse(html)
+            val watchLinks = doc.select("a[href*=/watch/]")
+            for (element in watchLinks) {
+                val href = element.attr("href")
+                if (href.isNotEmpty()) {
+                    val match = Regex("/(?:watch|anime)/([^/]+)").find(href)
+                    if (match != null) {
+                        return match.groupValues[1]
+                    }
+                }
+            }
+            null
+        } catch (e: Exception) {
+            Log.w(tag, "findSlugForQuery failed for query '$query': ${e.message}")
+            null
+        }
+    }
+
+    private fun fetchAnimeDataId(slug: String): String? {
+        return try {
+            val watchUrl = "$baseUrl/watch/$slug/ep-1"
+            var html = client.newCall(newRequest(watchUrl)).execute().use { response ->
+                if (response.isSuccessful) response.body?.string() else null
+            }
+
+            if (html == null) {
+                // Fallback to base watch page
+                val altUrl = "$baseUrl/watch/$slug"
+                html = client.newCall(newRequest(altUrl)).execute().use { response ->
+                    if (response.isSuccessful) response.body?.string() else null
+                }
+            }
+
+            if (html == null) return null
+
+            val doc = Jsoup.parse(html)
+            val dataId = doc.select("[data-id][data-fetch]").attr("data-id")
+            if (dataId.isNotEmpty()) dataId else null
+        } catch (e: Exception) {
+            Log.w(tag, "fetchAnimeDataId failed for slug '$slug': ${e.message}")
+            null
         }
     }
 
@@ -169,7 +255,7 @@ class AnikotoResolver(
             }
             servers
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(tag, "Error in getAvailableServers", e)
             emptyList()
         }
     }
@@ -214,37 +300,8 @@ class AnikotoResolver(
                 outro = outroInterval
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(tag, "Error in getServerEmbed", e)
             null
-        }
-    }
-
-    private fun tryFetchLocalServerEpisodes(title: String): List<Episode> {
-        return try {
-            val request = Request.Builder()
-                .url("$localServerUrl/api/stream/search?q=" + URLEncoder.encode(title, "UTF-8"))
-                .build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return emptyList()
-                val body = response.body?.string() ?: return emptyList()
-                val json = JsonParser.parseString(body).asJsonObject
-                val array = json.getAsJsonArray("episodes") ?: return emptyList()
-                val list = mutableListOf<Episode>()
-                array.forEach {
-                    val item = it.asJsonObject
-                    list.add(
-                        Episode(
-                            id = item.get("id").asString,
-                            number = item.get("number").asInt,
-                            title = item.get("title").asString,
-                            dataIds = item.get("dataIds")?.asString
-                        )
-                    )
-                }
-                list
-            }
-        } catch (e: Exception) {
-            emptyList()
         }
     }
 }

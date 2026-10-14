@@ -2,28 +2,33 @@ package com.aniverse.app.ui.screens.player
 
 import android.app.Activity
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import kotlin.OptIn
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.BookmarkBorder
@@ -42,6 +47,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -62,11 +70,14 @@ import kotlinx.coroutines.launch
 fun PlayerScreen(
     animeId: Int,
     animeTitle: String,
-    coverUrl: String,
+    englishTitle: String? = null,
+    coverUrl: String = "",
+    format: String? = "TV",
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
     val scope = rememberCoroutineScope()
     val dbHelper = remember { AniverseDbHelper.getInstance(context) }
     val appPrefs = remember { AppPreferences.getInstance(context) }
@@ -80,95 +91,155 @@ fun PlayerScreen(
     var activeAudioTab by remember { mutableStateOf(if (appPrefs.preferDub) "dub" else "sub") }
     var isBookmarked by remember { mutableStateOf(false) }
 
-    LaunchedEffect(animeId) {
-        isBookmarked = dbHelper.isInWatchlist(animeId)
-    }
-
-    val currentEpIndex = episodes.indexOfFirst { it.number == currentEpisode?.number }
-    val hasPrevEpisode = currentEpIndex > 0
-    val hasNextEpisode = currentEpIndex in 0 until episodes.size - 1
+    var isFullscreen by remember { mutableStateOf(false) }
+    var showControlsOverlay by remember { mutableStateOf(true) }
 
     var embedUrl by remember { mutableStateOf<String?>(null) }
     var introInterval by remember { mutableStateOf<SkipInterval?>(null) }
     var outroInterval by remember { mutableStateOf<SkipInterval?>(null) }
 
     var isLoadingEpisodes by remember { mutableStateOf(true) }
-    var isLoadingStream by remember { mutableStateOf(false) }
+    var episodesError by remember { mutableStateOf<String?>(null) }
 
-    var showEpisodeSheet by remember { mutableStateOf(false) }
-    var showServerSheet by remember { mutableStateOf(false) }
+    var isLoadingStream by remember { mutableStateOf(false) }
+    var streamError by remember { mutableStateOf<String?>(null) }
 
     var showSkipIntro by remember { mutableStateOf(false) }
     var showSkipOutro by remember { mutableStateOf(false) }
 
-    // Gesture feedback overlays
+    // Episode range chunking (30 episodes per tab for large series)
+    val chunkSize = 30
+    var selectedChunkIndex by remember { mutableStateOf(0) }
+
+    // Gesture feedback
     var seekFeedbackText by remember { mutableStateOf<String?>(null) }
     var volumeFeedback by remember { mutableStateOf<Float?>(null) }
     var brightnessFeedback by remember { mutableStateOf<Float?>(null) }
 
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
-    // ExoPlayer Instance
+    // ExoPlayer
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             playWhenReady = true
         }
     }
 
-    // Load initial episodes
-    LaunchedEffect(animeTitle) {
-        isLoadingEpisodes = true
-        try {
-            val list = resolver.getEpisodes(animeTitle)
-            episodes = list
-            if (list.isNotEmpty()) {
-                currentEpisode = list.first()
+    fun setFullscreenMode(enable: Boolean) {
+        isFullscreen = enable
+        activity?.let { act ->
+            val window = act.window
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            if (enable) {
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                insetsController.hide(WindowInsetsCompat.Type.systemBars())
+                insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else {
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                insetsController.show(WindowInsetsCompat.Type.systemBars())
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } finally {
-            isLoadingEpisodes = false
         }
     }
 
-    // Resolve stream whenever current episode or selected server changes
+    // Handle back button when in fullscreen
+    BackHandler(enabled = isFullscreen) {
+        setFullscreenMode(false)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            activity?.let { act ->
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                WindowCompat.getInsetsController(act.window, act.window.decorView).show(WindowInsetsCompat.Type.systemBars())
+            }
+            exoPlayer.release()
+        }
+    }
+
+    LaunchedEffect(animeId) {
+        isBookmarked = dbHelper.isInWatchlist(animeId)
+    }
+
+    // Stream resolution function
     fun loadStreamForEpisode(episode: Episode, preferredServer: ServerItem? = null) {
         scope.launch {
             isLoadingStream = true
+            streamError = null
+            embedUrl = null
             try {
                 val dataIds = episode.dataIds
-                if (!dataIds.isNullOrEmpty()) {
-                    val serverList = resolver.getAvailableServers(dataIds)
-                    servers = serverList
+                if (dataIds.isNullOrEmpty()) {
+                    streamError = "No stream data available for Episode ${episode.number}"
+                    return@launch
+                }
 
-                    val target = preferredServer
-                        ?: serverList.find { it.type == activeAudioTab && it.name.contains("HD-1", ignoreCase = true) }
-                        ?: serverList.find { it.type == activeAudioTab }
-                        ?: serverList.firstOrNull()
+                val serverList = resolver.getAvailableServers(dataIds)
+                servers = serverList
 
-                    selectedServer = target
+                if (serverList.isEmpty()) {
+                    streamError = "No servers found for Episode ${episode.number}"
+                    return@launch
+                }
 
-                    if (target != null) {
-                        val embedResult = resolver.getServerEmbed(target.linkId)
-                        if (embedResult != null) {
-                            embedUrl = embedResult.embedUrl
-                            introInterval = embedResult.intro
-                            outroInterval = embedResult.outro
+                val target = preferredServer
+                    ?: serverList.find { it.type == activeAudioTab && (it.name.contains("HD-1", true) || it.name.contains("Vidstream", true)) }
+                    ?: serverList.find { it.type == activeAudioTab }
+                    ?: serverList.first()
 
-                            // If direct m3u8/mp4, feed into ExoPlayer
-                            if (embedResult.embedUrl.endsWith(".m3u8") || embedResult.embedUrl.endsWith(".mp4")) {
-                                exoPlayer.setMediaItem(MediaItem.fromUri(embedResult.embedUrl))
-                                exoPlayer.prepare()
-                            }
-                        }
+                selectedServer = target
+
+                val embedResult = resolver.getServerEmbed(target.linkId)
+                if (embedResult != null && embedResult.embedUrl.isNotEmpty()) {
+                    embedUrl = embedResult.embedUrl
+                    introInterval = embedResult.intro
+                    outroInterval = embedResult.outro
+
+                    if (embedResult.embedUrl.endsWith(".m3u8") || embedResult.embedUrl.endsWith(".mp4")) {
+                        exoPlayer.setMediaItem(MediaItem.fromUri(embedResult.embedUrl))
+                        exoPlayer.prepare()
                     }
+                } else {
+                    streamError = "Could not retrieve streaming link from ${target.name}"
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                streamError = e.message ?: "Failed to connect to streaming server"
             } finally {
                 isLoadingStream = false
             }
         }
+    }
+
+    // Episode loading function
+    fun fetchEpisodesList() {
+        scope.launch {
+            isLoadingEpisodes = true
+            episodesError = null
+            try {
+                val list = resolver.getEpisodes(
+                    primaryTitle = animeTitle,
+                    secondaryTitle = englishTitle,
+                    format = format
+                )
+                episodes = list
+                if (list.isNotEmpty()) {
+                    // Try to resume last watched episode if in history
+                    val history = dbHelper.getWatchHistory().find { it.animeId == animeId }
+                    val initialEp = history?.let { h -> list.find { it.number == h.episodeNumber } } ?: list.first()
+                    currentEpisode = initialEp
+                    selectedChunkIndex = (initialEp.number - 1).coerceAtLeast(0) / chunkSize
+                } else {
+                    episodesError = "No episodes found for '$animeTitle'."
+                }
+            } catch (e: Exception) {
+                episodesError = e.message ?: "Error loading episode list"
+            } finally {
+                isLoadingEpisodes = false
+            }
+        }
+    }
+
+    LaunchedEffect(animeTitle) {
+        fetchEpisodesList()
     }
 
     LaunchedEffect(currentEpisode) {
@@ -177,7 +248,30 @@ fun PlayerScreen(
         }
     }
 
-    // Periodic Progress Tracking & Skip Interval Checker
+    // Auto-hide controls overlay in fullscreen
+    LaunchedEffect(showControlsOverlay, isFullscreen) {
+        if (showControlsOverlay && isFullscreen) {
+            delay(4000)
+            showControlsOverlay = false
+        }
+    }
+
+    // Auto next & progress tracking
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED && appPrefs.autoPlayNext) {
+                    val idx = episodes.indexOfFirst { it.number == currentEpisode?.number }
+                    if (idx in 0 until episodes.size - 1) {
+                        currentEpisode = episodes[idx + 1]
+                    }
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose { exoPlayer.removeListener(listener) }
+    }
+
     LaunchedEffect(exoPlayer) {
         while (true) {
             if (exoPlayer.isPlaying) {
@@ -190,8 +284,6 @@ fun PlayerScreen(
                         exoPlayer.seekTo(intro.end + 1000)
                         showSkipIntro = false
                     }
-                } ?: run {
-                    showSkipIntro = pos in 60_000L..150_000L // sensible default OP interval
                 }
 
                 outroInterval?.let { outro ->
@@ -202,7 +294,7 @@ fun PlayerScreen(
                     currentEpisode?.let { ep ->
                         dbHelper.saveProgress(
                             animeId = animeId,
-                            title = animeTitle,
+                            title = englishTitle ?: animeTitle,
                             coverUrl = coverUrl,
                             episodeNum = ep.number,
                             positionMs = pos,
@@ -215,593 +307,866 @@ fun PlayerScreen(
         }
     }
 
-    DisposableEffect(exoPlayer) {
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED) {
-                    if (appPrefs.autoPlayNext) {
-                        val idx = episodes.indexOfFirst { it.number == currentEpisode?.number }
-                        if (idx in 0 until episodes.size - 1) {
-                            currentEpisode = episodes[idx + 1]
-                        }
-                    }
-                }
-            }
-        }
-        exoPlayer.addListener(listener)
-        onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.release()
-        }
-    }
+    val currentEpIndex = episodes.indexOfFirst { it.number == currentEpisode?.number }
+    val hasPrevEpisode = currentEpIndex > 0
+    val hasNextEpisode = currentEpIndex in 0 until episodes.size - 1
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(DarkCanvas)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = { offset ->
-                        val screenWidth = size.width
-                        if (offset.x < screenWidth / 2) {
-                            // Left double tap: Rewind 10s
-                            val newPos = (exoPlayer.currentPosition - 10_000).coerceAtLeast(0)
-                            exoPlayer.seekTo(newPos)
-                            seekFeedbackText = "-10s"
-                        } else {
-                            // Right double tap: Fast forward 10s
-                            val newPos = (exoPlayer.currentPosition + 10_000).coerceAtMost(exoPlayer.duration)
-                            exoPlayer.seekTo(newPos)
-                            seekFeedbackText = "+10s"
-                        }
-                        scope.launch {
-                            delay(800)
-                            seekFeedbackText = null
-                        }
-                    }
-                )
-            }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onVerticalDrag = { change, dragAmount ->
-                        val screenWidth = size.width
-                        val x = change.position.x
-                        if (x < screenWidth / 2) {
-                            // Left side: Brightness
-                            val activity = context as? Activity
-                            activity?.window?.let { window ->
-                                val lp = window.attributes
-                                var currentBrightness = if (lp.screenBrightness < 0) 0.5f else lp.screenBrightness
-                                currentBrightness = (currentBrightness - (dragAmount / 800f)).coerceIn(0.05f, 1.0f)
-                                lp.screenBrightness = currentBrightness
-                                window.attributes = lp
-                                brightnessFeedback = currentBrightness
+    // Video Player Box (Reused in both portrait and fullscreen)
+    @Composable
+    fun VideoPlayerSurface(modifier: Modifier = Modifier) {
+        Box(
+            modifier = modifier
+                .background(Color.Black)
+                .clickable { showControlsOverlay = !showControlsOverlay }
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onDoubleTap = { offset ->
+                            val screenWidth = size.width
+                            if (offset.x < screenWidth / 2) {
+                                val newPos = (exoPlayer.currentPosition - 10_000).coerceAtLeast(0)
+                                exoPlayer.seekTo(newPos)
+                                seekFeedbackText = "-10s"
+                            } else {
+                                val newPos = (exoPlayer.currentPosition + 10_000).coerceAtMost(exoPlayer.duration)
+                                exoPlayer.seekTo(newPos)
+                                seekFeedbackText = "+10s"
                             }
-                        } else {
-                            // Right side: Volume
-                            val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                            val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                            val delta = if (dragAmount < 0) 1 else -1
-                            val newVol = (currentVol + delta).coerceIn(0, maxVol)
-                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-                            volumeFeedback = newVol.toFloat() / maxVol
-                        }
-                    },
-                    onDragEnd = {
-                        scope.launch {
-                            delay(1000)
-                            volumeFeedback = null
-                            brightnessFeedback = null
-                        }
-                    }
-                )
-            }
-    ) {
-        // VIDEO PLAYER SURFACE (ExoPlayer or Hardware-Accelerated Iframe Player)
-        val isDirectStream = embedUrl?.endsWith(".m3u8") == true || embedUrl?.endsWith(".mp4") == true
-
-        if (isDirectStream) {
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = exoPlayer
-                        layoutParams = FrameLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        useController = true
-                        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-        } else if (!embedUrl.isNullOrEmpty()) {
-            AndroidView(
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        settings.apply {
-                            javaScriptEnabled = true
-                            domStorageEnabled = true
-                            mediaPlaybackRequiresUserGesture = false
-                            loadWithOverviewMode = true
-                            useWideViewPort = true
-                            cacheMode = WebSettings.LOAD_DEFAULT
-                        }
-                        webViewClient = object : WebViewClient() {
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                super.onPageFinished(view, url)
-                                // Inject ad-blocking & styling
-                                view?.evaluateJavascript(
-                                    """
-                                    (function() {
-                                        var style = document.createElement('style');
-                                        style.innerHTML = 'div[class*="ad"], iframe[id*="aswift"], #overlay { display: none !important; }';
-                                        document.head.appendChild(style);
-                                    })();
-                                    """.trimIndent(),
-                                    null
-                                )
+                            scope.launch {
+                                delay(800)
+                                seekFeedbackText = null
                             }
                         }
-                        webChromeClient = WebChromeClient()
-                        loadUrl(embedUrl ?: "")
-                    }
-                },
-                update = { webView ->
-                    embedUrl?.let { url ->
-                        if (webView.url != url) webView.loadUrl(url)
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            // Loading placeholder
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = PrimaryViolet)
-            }
-        }
-
-        val activity = context as? Activity
-        val isInPip = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            activity?.isInPictureInPictureMode == true
-        } else false
-
-        if (!isInPip) {
-            // TOP CONTROLS BAR (Overlay)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(DarkCanvas.copy(alpha = 0.85f), Color.Transparent)
-                        )
                     )
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-            IconButton(
-                onClick = {
-                    exoPlayer.stop()
-                    onBackClick()
-                },
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DarkSurface.copy(alpha = 0.8f))
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = TextPrimary
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = animeTitle,
-                    color = TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = currentEpisode?.title ?: "Loading episode...",
-                    color = PrimaryViolet,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            // Episode Picker Button
-            IconButton(
-                onClick = { showEpisodeSheet = true },
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DarkSurface.copy(alpha = 0.8f))
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.List,
-                    contentDescription = "Episode List",
-                    tint = PrimaryViolet
-                )
-            }
-
-            Spacer(modifier = Modifier.width(6.dp))
-
-            // Server Picker Button
-            IconButton(
-                onClick = { showServerSheet = true },
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DarkSurface.copy(alpha = 0.8f))
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Dns,
-                    contentDescription = "Server Selector",
-                    tint = AccentCyan
-                )
-            }
-
-            Spacer(modifier = Modifier.width(6.dp))
-
-            // Watchlist / Bookmark Button
-            IconButton(
-                onClick = {
-                    scope.launch {
-                        val animeObj = Anime(
-                            id = animeId,
-                            title = animeTitle,
-                            englishTitle = animeTitle,
-                            coverImage = coverUrl,
-                            bannerImage = null,
-                            description = null,
-                            format = "TV",
-                            status = null,
-                            episodes = episodes.size.takeIf { it > 0 },
-                            genres = emptyList(),
-                            averageScore = null,
-                            isDonghua = false,
-                            currentEpisode = currentEpisode?.number
-                        )
-                        isBookmarked = dbHelper.toggleWatchlist(animeObj)
-                    }
-                },
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DarkSurface.copy(alpha = 0.8f))
-            ) {
-                Icon(
-                    imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                    contentDescription = "Watchlist",
-                    tint = if (isBookmarked) AccentAmber else TextPrimary
-                )
-            }
-
-            Spacer(modifier = Modifier.width(6.dp))
-
-            // Picture-in-Picture Button
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                IconButton(
-                    onClick = {
-                        try {
-                            val hostActivity = context as? Activity
-                            hostActivity?.enterPictureInPictureMode(
-                                android.app.PictureInPictureParams.Builder()
-                                    .setAspectRatio(android.util.Rational(16, 9))
-                                    .build()
-                            )
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                }
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { change, dragAmount ->
+                            val screenWidth = size.width
+                            val x = change.position.x
+                            if (x < screenWidth / 2) {
+                                activity?.window?.let { window ->
+                                    val lp = window.attributes
+                                    var currentBrightness = if (lp.screenBrightness < 0) 0.5f else lp.screenBrightness
+                                    currentBrightness = (currentBrightness - (dragAmount / 800f)).coerceIn(0.05f, 1.0f)
+                                    lp.screenBrightness = currentBrightness
+                                    window.attributes = lp
+                                    brightnessFeedback = currentBrightness
+                                }
+                            } else {
+                                val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                                val delta = if (dragAmount < 0) 1 else -1
+                                val newVol = (currentVol + delta).coerceIn(0, maxVol)
+                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                volumeFeedback = newVol.toFloat() / maxVol
+                            }
+                        },
+                        onDragEnd = {
+                            scope.launch {
+                                delay(1000)
+                                volumeFeedback = null
+                                brightnessFeedback = null
+                            }
                         }
-                    },
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(DarkSurface.copy(alpha = 0.8f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.PictureInPictureAlt,
-                        contentDescription = "Picture in Picture",
-                        tint = AccentAmber
                     )
                 }
-            }
-        }
-    }
-
-        // SEEK FEEDBACK OVERLAY (±10s animation)
-        seekFeedbackText?.let { text ->
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .clip(CircleShape)
-                    .background(DarkSurface.copy(alpha = 0.85f))
-                    .padding(horizontal = 24.dp, vertical = 14.dp)
-            ) {
-                Text(
-                    text = text,
-                    color = TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-            }
-        }
-
-        // VOLUME / BRIGHTNESS OVERLAY INDICATOR
-        volumeFeedback?.let { vol ->
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 32.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DarkSurface.copy(alpha = 0.9f))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = PrimaryViolet)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${(vol * 100).toInt()}%",
-                        color = TextPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        brightnessFeedback?.let { br ->
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 32.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DarkSurface.copy(alpha = 0.9f))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.BrightnessMedium, contentDescription = null, tint = AccentAmber)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${(br * 100).toInt()}%",
-                        color = TextPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        // AUTO SKIP INTRO OVERLAY BUTTON
-        AnimatedVisibility(
-            visible = showSkipIntro && !isInPip,
-            enter = fadeIn() + slideInHorizontally { it / 2 },
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 76.dp, end = 20.dp)
         ) {
-            Button(
-                onClick = {
-                    val skipTarget = introInterval?.end ?: 150_000L
-                    exoPlayer.seekTo(skipTarget + 1000)
-                    showSkipIntro = false
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet),
-                shape = RoundedCornerShape(14.dp),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.FastForward,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Skip Intro",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+            val isDirectStream = embedUrl?.endsWith(".m3u8") == true || embedUrl?.endsWith(".mp4") == true
 
-        // FLOATING PREV / NEXT EPISODE NAVIGATION
-        if (!isInPip && episodes.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(bottom = 76.dp, start = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (hasPrevEpisode) {
-                    IconButton(
-                        onClick = { currentEpisode = episodes[currentEpIndex - 1] },
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(DarkSurface.copy(alpha = 0.85f))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.SkipPrevious,
-                            contentDescription = "Previous Episode",
-                            tint = TextPrimary
-                        )
-                    }
+            if (isDirectStream) {
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            player = exoPlayer
+                            layoutParams = FrameLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            useController = true
+                            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else if (!embedUrl.isNullOrEmpty()) {
+                // Wrap embed inside Anikoto base URL wrapper with meta referrer policy
+                // This guarantees MegaPlay receives 'Referer: https://anikototv.to/' avoiding Error 410!
+                val embedHtml = remember(embedUrl) {
+                    """
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                        <meta name="referrer" content="always">
+                        <style>
+                            * { margin: 0; padding: 0; box-sizing: border-box; background: #000; }
+                            html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+                            iframe { width: 100%; height: 100%; border: 0; display: block; }
+                        </style>
+                    </head>
+                    <body>
+                        <iframe 
+                            src="$embedUrl" 
+                            allow="autoplay; fullscreen; picture-in-picture; encrypted-media" 
+                            allowfullscreen="true" 
+                            referrerpolicy="unsafe-url">
+                        </iframe>
+                    </body>
+                    </html>
+                    """.trimIndent()
                 }
 
-                if (hasNextEpisode) {
-                    IconButton(
-                        onClick = { currentEpisode = episodes[currentEpIndex + 1] },
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(DarkSurface.copy(alpha = 0.85f))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.SkipNext,
-                            contentDescription = "Next Episode",
-                            tint = PrimaryViolet
-                        )
-                    }
-                }
+                AndroidView(
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            settings.apply {
+                                javaScriptEnabled = true
+                                domStorageEnabled = true
+                                databaseEnabled = true
+                                mediaPlaybackRequiresUserGesture = false
+                                loadWithOverviewMode = true
+                                useWideViewPort = true
+                                cacheMode = WebSettings.LOAD_DEFAULT
+                                userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+                                allowFileAccess = true
+                                allowContentAccess = true
+                            }
+                            webViewClient = object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                    val url = request?.url?.toString() ?: return false
+                                    // Keep player requests inside the webview; block spam external ad redirects
+                                    if (url.contains("megaplay") || url.contains("anikoto") || url.contains("tcdn") || url.contains("bcdn") || url.contains("stream")) {
+                                        return false
+                                    }
+                                    return true
+                                }
+                            }
+                            webChromeClient = WebChromeClient()
+                            loadDataWithBaseURL("https://anikototv.to/", embedHtml, "text/html", "UTF-8", null)
+                        }
+                    },
+                    update = { webView ->
+                        webView.loadDataWithBaseURL("https://anikototv.to/", embedHtml, "text/html", "UTF-8", null)
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
             }
-        }
 
-        // EPISODE PICKER BOTTOM SHEET
-        if (showEpisodeSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showEpisodeSheet = false },
-                containerColor = DarkSurface,
-                dragHandle = { BottomSheetDefaults.DragHandle(color = DarkBorder) }
-            ) {
-                Column(
+            // Stream Loading Overlay
+            if (isLoadingStream) {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .padding(bottom = 24.dp)
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.7f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Episodes (${episodes.size})",
-                        color = TextPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = PrimaryViolet, modifier = Modifier.size(42.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Resolving stream...",
+                            color = TextSecondary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+            // Stream Error Overlay
+            if (streamError != null && !isLoadingStream) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(DarkCanvas.copy(alpha = 0.92f))
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ErrorOutline,
+                            contentDescription = null,
+                            tint = AccentRed,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = streamError ?: "Stream Unavailable",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(
+                                onClick = { currentEpisode?.let { loadStreamForEpisode(it) } },
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Retry", fontSize = 13.sp)
+                            }
 
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 64.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                            // Switch to another server
+                            val altServer = servers.firstOrNull { it.linkId != selectedServer?.linkId }
+                            if (altServer != null) {
+                                OutlinedButton(
+                                    onClick = {
+                                        selectedServer = altServer
+                                        currentEpisode?.let { loadStreamForEpisode(it, altServer) }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentCyan)
+                                ) {
+                                    Text("Try ${altServer.name}", fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Controls Overlay (Header & Bottom Actions)
+            AnimatedVisibility(
+                visible = showControlsOverlay || isFullscreen,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Top Bar
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 340.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Black.copy(alpha = 0.85f), Color.Transparent)
+                                )
+                            )
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        items(episodes, key = { it.id }) { ep ->
-                            val isSelected = currentEpisode?.id == ep.id
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isSelected) PrimaryViolet else DarkCard)
-                                    .clickable {
-                                        currentEpisode = ep
-                                        showEpisodeSheet = false
+                        IconButton(
+                            onClick = {
+                                if (isFullscreen) {
+                                    setFullscreenMode(false)
+                                } else {
+                                    exoPlayer.stop()
+                                    onBackClick()
+                                }
+                            },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkSurface.copy(alpha = 0.8f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = TextPrimary
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = englishTitle ?: animeTitle,
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = currentEpisode?.title ?: "Episode ${currentEpisode?.number ?: 1}",
+                                color = PrimaryViolet,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        // PiP Button
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                            IconButton(
+                                onClick = {
+                                    try {
+                                        activity?.enterPictureInPictureMode(
+                                            android.app.PictureInPictureParams.Builder()
+                                                .setAspectRatio(android.util.Rational(16, 9))
+                                                .build()
+                                        )
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
                                     }
-                                    .padding(vertical = 12.dp),
-                                contentAlignment = Alignment.Center
+                                },
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(DarkSurface.copy(alpha = 0.8f))
                             ) {
-                                Text(
-                                    text = "${ep.number}",
-                                    color = if (isSelected) Color.White else TextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    textAlign = TextAlign.Center
+                                Icon(
+                                    imageVector = Icons.Filled.PictureInPictureAlt,
+                                    contentDescription = "PiP",
+                                    tint = AccentAmber
                                 )
                             }
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+
+                        // Fullscreen Toggle Button
+                        IconButton(
+                            onClick = { setFullscreenMode(!isFullscreen) },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkSurface.copy(alpha = 0.8f))
+                        ) {
+                            Icon(
+                                imageVector = if (isFullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+                                contentDescription = "Toggle Fullscreen",
+                                tint = Color.White
+                            )
+                        }
+                    }
+
+                    // Floating Navigation Buttons (Prev / Next) in Fullscreen
+                    if (isFullscreen && episodes.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (hasPrevEpisode) {
+                                IconButton(
+                                    onClick = { currentEpisode = episodes[currentEpIndex - 1] },
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(DarkSurface.copy(alpha = 0.85f))
+                                ) {
+                                    Icon(Icons.Filled.SkipPrevious, contentDescription = "Prev Episode", tint = TextPrimary)
+                                }
+                            }
+                            if (hasNextEpisode) {
+                                IconButton(
+                                    onClick = { currentEpisode = episodes[currentEpIndex + 1] },
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(DarkSurface.copy(alpha = 0.85f))
+                                ) {
+                                    Icon(Icons.Filled.SkipNext, contentDescription = "Next Episode", tint = PrimaryViolet)
+                                }
+                            }
+                        }
+                    }
+
+                    // Auto Skip Intro Button
+                    AnimatedVisibility(
+                        visible = showSkipIntro,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val skipTarget = introInterval?.end ?: 150_000L
+                                exoPlayer.seekTo(skipTarget + 1000)
+                                showSkipIntro = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Filled.FastForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Skip Intro", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
-        }
 
-        // SERVER / AUDIO SELECTOR BOTTOM SHEET
-        if (showServerSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showServerSheet = false },
-                containerColor = DarkSurface,
-                dragHandle = { BottomSheetDefaults.DragHandle(color = DarkBorder) }
-            ) {
-                Column(
+            // Seek Feedback Overlay
+            seekFeedbackText?.let { text ->
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .padding(bottom = 24.dp)
+                        .align(Alignment.Center)
+                        .clip(CircleShape)
+                        .background(DarkSurface.copy(alpha = 0.85f))
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
                 ) {
-                    Text(
-                        text = "Streaming Servers",
-                        color = TextPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(text = text, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+            // Volume Indicator
+            volumeFeedback?.let { vol ->
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 24.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DarkSurface.copy(alpha = 0.9f))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = PrimaryViolet)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "${(vol * 100).toInt()}%", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
 
-                    // Audio Type Selector (Sub vs Dub)
+            // Brightness Indicator
+            brightnessFeedback?.let { br ->
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 24.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DarkSurface.copy(alpha = 0.9f))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Filled.BrightnessMedium, contentDescription = null, tint = AccentAmber)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "${(br * 100).toInt()}%", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    if (isFullscreen) {
+        // FULLSCREEN LANDSCAPE VIEW
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            VideoPlayerSurface(modifier = Modifier.fillMaxSize())
+        }
+    } else {
+        // PORTRAIT VIEW (Player at top, full scrollable details & episode list below)
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(DarkCanvas)
+                .statusBarsPadding()
+        ) {
+            // 1. Top 16:9 Video Player
+            VideoPlayerSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+            )
+
+            // 2. Scrollable Anime Details & Episode Selector
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                // Anime Title & Active Episode indicator
+                item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        FilterChip(
-                            selected = activeAudioTab == "sub",
-                            onClick = { activeAudioTab = "sub" },
-                            label = { Text("Subtitled (SUB)", fontSize = 12.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = PrimaryViolet,
-                                selectedLabelColor = Color.White
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = englishTitle ?: animeTitle,
+                                color = TextPrimary,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
-                        )
+                            if (englishTitle != null && englishTitle != animeTitle) {
+                                Text(
+                                    text = animeTitle,
+                                    color = TextMuted,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = currentEpisode?.let { "Now Playing: Episode ${it.number}" } ?: "Select an episode to watch",
+                                color = PrimaryViolet,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
 
-                        FilterChip(
-                            selected = activeAudioTab == "dub",
-                            onClick = { activeAudioTab = "dub" },
-                            label = { Text("Dubbed (DUB)", fontSize = 12.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentAmber,
-                                selectedLabelColor = Color.White
+                        // Bookmark Button
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    val animeObj = Anime(
+                                        id = animeId,
+                                        title = animeTitle,
+                                        englishTitle = englishTitle,
+                                        coverImage = coverUrl,
+                                        format = format,
+                                        episodes = episodes.size.takeIf { it > 0 },
+                                        currentEpisode = currentEpisode?.number
+                                    )
+                                    isBookmarked = dbHelper.toggleWatchlist(animeObj)
+                                }
+                            },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkSurface)
+                        ) {
+                            Icon(
+                                imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = "Watchlist",
+                                tint = if (isBookmarked) AccentAmber else TextPrimary
                             )
-                        )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
 
-                    // Filtered server buttons
-                    val filteredServers = servers.filter { it.type == activeAudioTab }
-                    if (filteredServers.isEmpty()) {
-                        Text(
-                            text = "No $activeAudioTab servers found for this episode.",
-                            color = TextMuted,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            filteredServers.forEach { srv ->
-                                val isSelected = selectedServer?.linkId == srv.linkId
-                                Row(
+                // Audio Format (SUB / DUB) & Streaming Server Selector Row
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(DarkSurface)
+                            .padding(12.dp)
+                    ) {
+                        // Sub / Dub Chips
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(
+                                    selected = activeAudioTab == "sub",
+                                    onClick = {
+                                        activeAudioTab = "sub"
+                                        currentEpisode?.let { ep -> loadStreamForEpisode(ep) }
+                                    },
+                                    label = { Text("SUB", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = PrimaryViolet,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = DarkCard,
+                                        labelColor = TextMuted
+                                    )
+                                )
+
+                                FilterChip(
+                                    selected = activeAudioTab == "dub",
+                                    onClick = {
+                                        activeAudioTab = "dub"
+                                        currentEpisode?.let { ep -> loadStreamForEpisode(ep) }
+                                    },
+                                    label = { Text("DUB", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = AccentAmber,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = DarkCard,
+                                        labelColor = TextMuted
+                                    )
+                                )
+                            }
+
+                            // Prev / Next Episode Buttons
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                IconButton(
+                                    onClick = { currentEpisode = episodes[currentEpIndex - 1] },
+                                    enabled = hasPrevEpisode,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.SkipPrevious,
+                                        contentDescription = "Previous",
+                                        tint = if (hasPrevEpisode) TextPrimary else TextMuted.copy(alpha = 0.4f)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { currentEpisode = episodes[currentEpIndex + 1] },
+                                    enabled = hasNextEpisode,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.SkipNext,
+                                        contentDescription = "Next",
+                                        tint = if (hasNextEpisode) PrimaryViolet else TextMuted.copy(alpha = 0.4f)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Available Servers for active audio
+                        val filteredServers = servers.filter { it.type == activeAudioTab }
+                        if (filteredServers.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Server:",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(filteredServers.size) { idx ->
+                                    val srv = filteredServers[idx]
+                                    val isSelected = selectedServer?.linkId == srv.linkId
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSelected) PrimaryViolet.copy(alpha = 0.25f) else DarkCard)
+                                            .border(
+                                                width = 1.dp,
+                                                color = if (isSelected) PrimaryViolet else DarkBorder,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable {
+                                                selectedServer = srv
+                                                currentEpisode?.let { ep -> loadStreamForEpisode(ep, srv) }
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = srv.name,
+                                            color = if (isSelected) PrimaryViolet else TextSecondary,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // 3. EPISODE LIST SECTION (Prominently displayed)
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Episodes",
+                                color = TextPrimary,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (episodes.isNotEmpty()) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(if (isSelected) PrimaryViolet.copy(alpha = 0.2f) else DarkCard)
-                                        .clickable {
-                                            selectedServer = srv
-                                            currentEpisode?.let { ep -> loadStreamForEpisode(ep, srv) }
-                                            showServerSheet = false
-                                        }
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(PrimaryViolet.copy(alpha = 0.2f))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = srv.name,
-                                        color = if (isSelected) PrimaryViolet else TextPrimary,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        text = "${episodes.size}",
+                                        color = PrimaryViolet,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                    if (isSelected) {
-                                        Icon(
-                                            Icons.Filled.Check,
-                                            contentDescription = null,
-                                            tint = PrimaryViolet,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                }
+                            }
+                        }
+
+                        if (isLoadingEpisodes) {
+                            CircularProgressIndicator(
+                                color = PrimaryViolet,
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // Episode Chunking Tabs (For anime with > 30 episodes like One Piece)
+                if (episodes.size > chunkSize) {
+                    item {
+                        val chunkCount = (episodes.size + chunkSize - 1) / chunkSize
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(chunkCount) { idx ->
+                                val start = idx * chunkSize + 1
+                                val end = minOf((idx + 1) * chunkSize, episodes.size)
+                                val isSelected = selectedChunkIndex == idx
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) PrimaryViolet else DarkSurface)
+                                        .clickable { selectedChunkIndex = idx }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "$start - $end",
+                                        color = if (isSelected) Color.White else TextMuted,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+
+                // Loading / Error / Episode Grid
+                if (isLoadingEpisodes) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = PrimaryViolet)
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "Loading episodes from Anikoto...",
+                                    color = TextMuted,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                } else if (episodesError != null && episodes.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkSurface)
+                                .padding(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Filled.ErrorOutline,
+                                    contentDescription = null,
+                                    tint = AccentRed,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = episodesError ?: "Could not load episodes",
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = { fetchEpisodesList() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Retry", fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Visible episodes for the selected chunk
+                    val displayedEpisodes = if (episodes.size > chunkSize) {
+                        val start = selectedChunkIndex * chunkSize
+                        val end = minOf(start + chunkSize, episodes.size)
+                        episodes.subList(start, end)
+                    } else {
+                        episodes
+                    }
+
+                    item {
+                        // Grid of Episode Buttons
+                        val columns = 5
+                        val rows = (displayedEpisodes.size + columns - 1) / columns
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            for (rowIndex in 0 until rows) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    for (colIndex in 0 until columns) {
+                                        val epIdx = rowIndex * columns + colIndex
+                                        if (epIdx < displayedEpisodes.size) {
+                                            val ep = displayedEpisodes[epIdx]
+                                            val isPlaying = currentEpisode?.id == ep.id
+
+                                            val bgModifier = if (isPlaying) {
+                                                Modifier.background(Brush.verticalGradient(listOf(PrimaryViolet, PrimaryVioletDark)))
+                                            } else {
+                                                Modifier.background(DarkSurface)
+                                            }
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .aspectRatio(1.2f)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .then(bgModifier)
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = if (isPlaying) VioletLight else DarkBorder,
+                                                        shape = RoundedCornerShape(10.dp)
+                                                    )
+                                                    .clickable {
+                                                        currentEpisode = ep
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.Center
+                                                ) {
+                                                    if (isPlaying) {
+                                                        Icon(
+                                                            imageVector = Icons.Filled.PlayArrow,
+                                                            contentDescription = null,
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = "${ep.number}",
+                                                        color = if (isPlaying) Color.White else TextPrimary,
+                                                        fontSize = 14.sp,
+                                                        fontWeight = if (isPlaying) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
                                     }
                                 }
                             }

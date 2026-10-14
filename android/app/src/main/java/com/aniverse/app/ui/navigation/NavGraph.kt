@@ -41,8 +41,10 @@ fun NavGraph(
                         navController.navigate(
                             Screen.Player.createRoute(
                                 animeId = anime.id,
-                                title = anime.englishTitle ?: anime.title,
-                                cover = anime.coverImage
+                                title = anime.title,
+                                englishTitle = anime.englishTitle,
+                                cover = anime.coverImage,
+                                format = anime.format
                             )
                         )
                     }
@@ -55,8 +57,10 @@ fun NavGraph(
                         navController.navigate(
                             Screen.Player.createRoute(
                                 animeId = anime.id,
-                                title = anime.englishTitle ?: anime.title,
-                                cover = anime.coverImage
+                                title = anime.title,
+                                englishTitle = anime.englishTitle,
+                                cover = anime.coverImage,
+                                format = anime.format
                             )
                         )
                     }
@@ -69,8 +73,10 @@ fun NavGraph(
                         navController.navigate(
                             Screen.Player.createRoute(
                                 animeId = anime.id,
-                                title = anime.englishTitle ?: anime.title,
-                                cover = anime.coverImage
+                                title = anime.title,
+                                englishTitle = anime.englishTitle,
+                                cover = anime.coverImage,
+                                format = anime.format
                             )
                         )
                     }
@@ -87,22 +93,34 @@ fun NavGraph(
                     navArgument("animeId") { type = NavType.IntType },
                     navArgument("title") {
                         type = NavType.StringType
-                        defaultValue = "Episode 1"
+                        defaultValue = ""
+                    },
+                    navArgument("englishTitle") {
+                        type = NavType.StringType
+                        defaultValue = ""
                     },
                     navArgument("cover") {
                         type = NavType.StringType
                         defaultValue = ""
+                    },
+                    navArgument("format") {
+                        type = NavType.StringType
+                        defaultValue = "TV"
                     }
                 )
             ) { backStackEntry ->
                 val animeId = backStackEntry.arguments?.getInt("animeId") ?: 0
                 val title = backStackEntry.arguments?.getString("title") ?: ""
+                val englishTitle = backStackEntry.arguments?.getString("englishTitle")?.takeIf { it.isNotEmpty() }
                 val cover = backStackEntry.arguments?.getString("cover") ?: ""
+                val format = backStackEntry.arguments?.getString("format") ?: "TV"
 
                 PlayerScreen(
                     animeId = animeId,
                     animeTitle = title,
+                    englishTitle = englishTitle,
                     coverUrl = cover,
+                    format = format,
                     onBackClick = { navController.popBackStack() }
                 )
             }

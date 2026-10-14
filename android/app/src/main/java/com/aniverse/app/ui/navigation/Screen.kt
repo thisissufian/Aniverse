@@ -23,15 +23,23 @@ sealed class Screen(
     object Profile : Screen("profile", "Profile", Icons.Filled.Person, Icons.Outlined.Person)
 
     object Player : Screen(
-        route = "player/{animeId}?title={title}&cover={cover}",
+        route = "player/{animeId}?title={title}&englishTitle={englishTitle}&cover={cover}&format={format}",
         title = "Player",
         selectedIcon = Icons.Filled.Home,
         unselectedIcon = Icons.Outlined.Home
     ) {
-        fun createRoute(animeId: Int, title: String = "", cover: String = ""): String {
+        fun createRoute(
+            animeId: Int,
+            title: String = "",
+            englishTitle: String? = null,
+            cover: String = "",
+            format: String? = "TV"
+        ): String {
             val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+            val encodedEng = java.net.URLEncoder.encode(englishTitle ?: "", "UTF-8")
             val encodedCover = java.net.URLEncoder.encode(cover, "UTF-8")
-            return "player/$animeId?title=$encodedTitle&cover=$encodedCover"
+            val encodedFormat = java.net.URLEncoder.encode(format ?: "TV", "UTF-8")
+            return "player/$animeId?title=$encodedTitle&englishTitle=$encodedEng&cover=$encodedCover&format=$encodedFormat"
         }
     }
 }
