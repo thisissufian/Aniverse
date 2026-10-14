@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -59,7 +58,7 @@ fun HomeScreen(
             ) {
                 CircularProgressIndicator(color = PrimaryViolet)
             }
-        } else if (uiState.errorMessage != null && uiState.trendingAnime.isEmpty()) {
+        } else if (uiState.errorMessage != null && uiState.top10Today.isEmpty() && uiState.mostPopular.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -120,50 +119,95 @@ fun HomeScreen(
                     }
                 }
 
-                // Latest Episodes Shelf
-                if (uiState.latestEpisodes.isNotEmpty()) {
+                // 1. Top 10 Today
+                if (uiState.top10Today.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
                         AnimeSection(
-                            title = "Latest Episodes",
-                            subtitle = "Recently aired anime releases",
-                            animeList = uiState.latestEpisodes,
+                            title = "Top 10 Today",
+                            subtitle = "Most trending anime in the last 24 hours",
+                            animeList = uiState.top10Today,
                             onAnimeClick = onAnimeClick
                         )
                     }
                 }
 
-                // Trending Now Shelf
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    AnimeSection(
-                        title = "Trending Now",
-                        subtitle = "Most watched this week",
-                        animeList = uiState.trendingAnime,
-                        onAnimeClick = onAnimeClick
-                    )
+                // 2. Top 10 Week
+                if (uiState.top10Week.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        AnimeSection(
+                            title = "Top 10 Week",
+                            subtitle = "Community favorites this week",
+                            animeList = uiState.top10Week,
+                            onAnimeClick = onAnimeClick
+                        )
+                    }
                 }
 
-                // Popular All Time Shelf
-                item {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    AnimeSection(
-                        title = "Popular All Time",
-                        subtitle = "Top community favorites",
-                        animeList = uiState.popularAnime,
-                        onAnimeClick = onAnimeClick
-                    )
+                // 3. Top 10 Month
+                if (uiState.top10Month.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        AnimeSection(
+                            title = "Top 10 Month",
+                            subtitle = "Highest rated anime this month",
+                            animeList = uiState.top10Month,
+                            onAnimeClick = onAnimeClick
+                        )
+                    }
                 }
 
-                // Chinese Donghua Shelf
-                item {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    AnimeSection(
-                        title = "Chinese Donghua",
-                        subtitle = "Top 3D and 2D cultivation anime",
-                        animeList = uiState.donghuaAnime,
-                        onAnimeClick = onAnimeClick
-                    )
+                // 4. Top Airing
+                if (uiState.topAiring.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        AnimeSection(
+                            title = "Top Airing",
+                            subtitle = "Currently releasing seasonal anime",
+                            animeList = uiState.topAiring,
+                            onAnimeClick = onAnimeClick
+                        )
+                    }
+                }
+
+                // 5. Most Popular
+                if (uiState.mostPopular.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        AnimeSection(
+                            title = "Most Popular",
+                            subtitle = "All-time legendary favorites",
+                            animeList = uiState.mostPopular,
+                            onAnimeClick = onAnimeClick
+                        )
+                    }
+                }
+
+                // 6. Most Watched
+                if (uiState.mostWatched.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        AnimeSection(
+                            title = "Most Watched",
+                            subtitle = "Highest community watch counts",
+                            animeList = uiState.mostWatched,
+                            onAnimeClick = onAnimeClick
+                        )
+                    }
+                }
+
+                // 7. Chinese Donghua
+                if (uiState.donghuaAnime.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        AnimeSection(
+                            title = "Chinese Donghua",
+                            subtitle = "Top 3D and 2D cultivation anime",
+                            animeList = uiState.donghuaAnime,
+                            onAnimeClick = onAnimeClick
+                        )
+                    }
                 }
             }
         }

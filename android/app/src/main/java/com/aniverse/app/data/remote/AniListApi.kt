@@ -1,6 +1,7 @@
 package com.aniverse.app.data.remote
 
 import com.aniverse.app.data.model.Anime
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +21,7 @@ class AniListApi(
     private val endpoint = "https://graphql.anilist.co"
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-    private suspend fun executeQuery(query: String, variables: Map<String, Any> = emptyMap()): JsonObject? = withContext(Dispatchers.IO) {
+    private suspend fun executeQuery(query: String, variables: Map<String, Any?> = emptyMap()): JsonObject? = withContext(Dispatchers.IO) {
         val payload = JsonObject().apply {
             addProperty("query", query)
             val varsObj = JsonObject()
@@ -29,6 +30,11 @@ class AniListApi(
                     is Number -> varsObj.addProperty(k, v)
                     is Boolean -> varsObj.addProperty(k, v)
                     is String -> varsObj.addProperty(k, v)
+                    is List<*> -> {
+                        val arr = JsonArray()
+                        v.forEach { item -> if (item != null) arr.add(item.toString()) }
+                        varsObj.add(k, arr)
+                    }
                 }
             }
             add("variables", varsObj)
@@ -53,10 +59,11 @@ class AniListApi(
         }
     }
 
-    suspend fun getTrendingAnime(page: Int = 1, perPage: Int = 20): List<Anime> {
+    // Top 10 Today (Trending right now)
+    suspend fun getTop10Today(): List<Anime> {
         val query = """
-            query (${'$'}page: Int, ${'$'}perPage: Int) {
-              Page(page: ${'$'}page, perPage: ${'$'}perPage) {
+            query {
+              Page(page: 1, perPage: 10) {
                 media(type: ANIME, sort: TRENDING_DESC, isAdult: false) {
                   id
                   title { romaji english native }
@@ -68,6 +75,88 @@ class AniListApi(
                   episodes
                   status
                   format
+                  seasonYear
+                  countryOfOrigin
+                }
+              }
+            }
+        """.trimIndent()
+
+        val json = executeQuery(query) ?: return emptyList()
+        return parseMediaList(json)
+    }
+
+    // Top 10 Week (Popularity / trending this week)
+    suspend fun getTop10Week(): List<Anime> {
+        val query = """
+            query {
+              Page(page: 1, perPage: 10) {
+                media(type: ANIME, sort: [TRENDING_DESC, POPULARITY_DESC], isAdult: false) {
+                  id
+                  title { romaji english native }
+                  coverImage { extraLarge large }
+                  bannerImage
+                  description(asHtml: false)
+                  genres
+                  averageScore
+                  episodes
+                  status
+                  format
+                  seasonYear
+                  countryOfOrigin
+                }
+              }
+            }
+        """.trimIndent()
+
+        val json = executeQuery(query) ?: return emptyList()
+        return parseMediaList(json)
+    }
+
+    // Top 10 Month (Top rated anime)
+    suspend fun getTop10Month(): List<Anime> {
+        val query = """
+            query {
+              Page(page: 1, perPage: 10) {
+                media(type: ANIME, sort: [SCORE_DESC, POPULARITY_DESC], isAdult: false) {
+                  id
+                  title { romaji english native }
+                  coverImage { extraLarge large }
+                  bannerImage
+                  description(asHtml: false)
+                  genres
+                  averageScore
+                  episodes
+                  status
+                  format
+                  seasonYear
+                  countryOfOrigin
+                }
+              }
+            }
+        """.trimIndent()
+
+        val json = executeQuery(query) ?: return emptyList()
+        return parseMediaList(json)
+    }
+
+    // Top Airing (Currently releasing shows)
+    suspend fun getTopAiring(page: Int = 1, perPage: Int = 20): List<Anime> {
+        val query = """
+            query (${'$'}page: Int, ${'$'}perPage: Int) {
+              Page(page: ${'$'}page, perPage: ${'$'}perPage) {
+                media(type: ANIME, status: RELEASING, sort: POPULARITY_DESC, isAdult: false) {
+                  id
+                  title { romaji english native }
+                  coverImage { extraLarge large }
+                  bannerImage
+                  description(asHtml: false)
+                  genres
+                  averageScore
+                  episodes
+                  status
+                  format
+                  seasonYear
                   countryOfOrigin
                 }
               }
@@ -78,7 +167,8 @@ class AniListApi(
         return parseMediaList(json)
     }
 
-    suspend fun getPopularAnime(page: Int = 1, perPage: Int = 20): List<Anime> {
+    // Most Popular (All-time community favorites)
+    suspend fun getMostPopular(page: Int = 1, perPage: Int = 20): List<Anime> {
         val query = """
             query (${'$'}page: Int, ${'$'}perPage: Int) {
               Page(page: ${'$'}page, perPage: ${'$'}perPage) {
@@ -93,6 +183,7 @@ class AniListApi(
                   episodes
                   status
                   format
+                  seasonYear
                   countryOfOrigin
                 }
               }
@@ -102,6 +193,36 @@ class AniListApi(
         val json = executeQuery(query, mapOf("page" to page, "perPage" to perPage)) ?: return emptyList()
         return parseMediaList(json)
     }
+
+    // Most Watched (High episode completion and high views)
+    suspend fun getMostWatched(page: Int = 1, perPage: Int = 20): List<Anime> {
+        val query = """
+            query (${'$'}page: Int, ${'$'}perPage: Int) {
+              Page(page: ${'$'}page, perPage: ${'$'}perPage) {
+                media(type: ANIME, sort: [POPULARITY_DESC, FAVOURITES_DESC], isAdult: false) {
+                  id
+                  title { romaji english native }
+                  coverImage { extraLarge large }
+                  bannerImage
+                  description(asHtml: false)
+                  genres
+                  averageScore
+                  episodes
+                  status
+                  format
+                  seasonYear
+                  countryOfOrigin
+                }
+              }
+            }
+        """.trimIndent()
+
+        val json = executeQuery(query, mapOf("page" to page, "perPage" to perPage)) ?: return emptyList()
+        return parseMediaList(json)
+    }
+
+    suspend fun getTrendingAnime(page: Int = 1, perPage: Int = 20): List<Anime> = getTop10Today()
+    suspend fun getPopularAnime(page: Int = 1, perPage: Int = 20): List<Anime> = getMostPopular(page, perPage)
 
     suspend fun getAiringSchedule(page: Int = 1, perPage: Int = 20, filter: String = "ALL"): List<Anime> {
         val query = """
@@ -121,6 +242,7 @@ class AniListApi(
                     episodes
                     status
                     format
+                    seasonYear
                     countryOfOrigin
                   }
                 }
@@ -132,12 +254,43 @@ class AniListApi(
         return parseAiringSchedule(json, filter, perPage)
     }
 
-    suspend fun searchAnime(keyword: String, isDonghua: Boolean = false): List<Anime> {
+    // Multi-criteria search with genres, status, format, year
+    suspend fun searchAnime(
+        keyword: String? = null,
+        genres: List<String> = emptyList(),
+        status: String? = null,
+        seasonYear: Int? = null,
+        format: String? = null,
+        isDonghua: Boolean = false,
+        page: Int = 1,
+        perPage: Int = 30
+    ): List<Anime> {
         val country = if (isDonghua) "CN" else null
+        val trimmedSearch = keyword?.trim()?.takeIf { it.isNotEmpty() }
+
         val query = """
-            query (${'$'}search: String, ${'$'}country: CountryCode) {
-              Page(page: 1, perPage: 30) {
-                media(search: ${'$'}search, countryOfOrigin: ${'$'}country, type: ANIME, isAdult: false, sort: SEARCH_MATCH) {
+            query (
+              ${'$'}page: Int,
+              ${'$'}perPage: Int,
+              ${'$'}search: String,
+              ${'$'}genreIn: [String],
+              ${'$'}status: MediaStatus,
+              ${'$'}seasonYear: Int,
+              ${'$'}format: MediaFormat,
+              ${'$'}country: CountryCode
+            ) {
+              Page(page: ${'$'}page, perPage: ${'$'}perPage) {
+                media(
+                  search: ${'$'}search,
+                  genre_in: ${'$'}genreIn,
+                  status: ${'$'}status,
+                  seasonYear: ${'$'}seasonYear,
+                  format: ${'$'}format,
+                  countryOfOrigin: ${'$'}country,
+                  type: ANIME,
+                  isAdult: false,
+                  sort: [POPULARITY_DESC, SCORE_DESC]
+                ) {
                   id
                   title { romaji english native }
                   coverImage { extraLarge large }
@@ -148,17 +301,39 @@ class AniListApi(
                   episodes
                   status
                   format
+                  seasonYear
                   countryOfOrigin
                 }
               }
             }
         """.trimIndent()
 
-        val vars = mutableMapOf<String, Any>("search" to keyword)
+        val vars = mutableMapOf<String, Any?>(
+            "page" to page,
+            "perPage" to perPage
+        )
+
+        if (trimmedSearch != null) vars["search"] = trimmedSearch
+        if (genres.isNotEmpty()) vars["genreIn"] = genres
+        if (!status.isNullOrEmpty() && status != "ALL") vars["status"] = status
+        if (seasonYear != null && seasonYear > 0) vars["seasonYear"] = seasonYear
+        if (!format.isNullOrEmpty() && format != "ALL") vars["format"] = format
         if (country != null) vars["country"] = country
 
         val json = executeQuery(query, vars) ?: return emptyList()
         return parseMediaList(json)
+    }
+
+    // Convenience overload for backwards compatibility
+    suspend fun searchAnime(keyword: String, isDonghua: Boolean): List<Anime> {
+        return searchAnime(
+            keyword = keyword,
+            genres = emptyList(),
+            status = null,
+            seasonYear = null,
+            format = null,
+            isDonghua = isDonghua
+        )
     }
 
     private fun parseMediaList(json: JsonObject): List<Anime> {
@@ -183,6 +358,7 @@ class AniListApi(
                 val eps = obj.get("episodes")?.takeIf { !it.isJsonNull }?.asInt
                 val status = obj.get("status")?.takeIf { !it.isJsonNull }?.asString
                 val format = obj.get("format")?.takeIf { !it.isJsonNull }?.asString
+                val year = obj.get("seasonYear")?.takeIf { !it.isJsonNull }?.asInt
                 val country = obj.get("countryOfOrigin")?.takeIf { !it.isJsonNull }?.asString
 
                 val genres = mutableListOf<String>()
@@ -203,6 +379,7 @@ class AniListApi(
                         episodes = eps,
                         status = status,
                         format = format,
+                        seasonYear = year,
                         isDonghua = country == "CN"
                     )
                 )
@@ -247,6 +424,7 @@ class AniListApi(
                 val eps = mediaObj.get("episodes")?.takeIf { !it.isJsonNull }?.asInt
                 val status = mediaObj.get("status")?.takeIf { !it.isJsonNull }?.asString
                 val format = mediaObj.get("format")?.takeIf { !it.isJsonNull }?.asString
+                val year = mediaObj.get("seasonYear")?.takeIf { !it.isJsonNull }?.asInt
 
                 val genres = mutableListOf<String>()
                 mediaObj.getAsJsonArray("genres")?.forEach {
@@ -267,6 +445,7 @@ class AniListApi(
                         currentEpisode = episodeNum,
                         status = status,
                         format = format,
+                        seasonYear = year,
                         isDonghua = isDonghua
                     )
                 )

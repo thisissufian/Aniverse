@@ -25,19 +25,32 @@ fun AnimeCard(
     anime: Anime,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    width: Int = 135
+    width: Int? = 135
 ) {
+    val cardModifier = if (width != null) {
+        modifier.width(width.dp)
+    } else {
+        modifier.fillMaxWidth()
+    }
+
     Column(
-        modifier = modifier
-            .width(width.dp)
+        modifier = cardModifier
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
     ) {
         // Poster Box
-        Box(
-            modifier = Modifier
+        val posterModifier = if (width != null) {
+            Modifier
                 .width(width.dp)
                 .height((width * 1.45).dp)
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.7f)
+        }
+
+        Box(
+            modifier = posterModifier
                 .clip(RoundedCornerShape(12.dp))
                 .background(DarkCard)
         ) {
@@ -48,7 +61,7 @@ fun AnimeCard(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Gradient shadow on poster bottom
+            // Bottom gradient overlay for readability of bottom tags
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -63,68 +76,107 @@ fun AnimeCard(
                     )
             )
 
-            // Top Badges
+            // Top Badges Row: Format Tag (TV / Movie) and Status Tag (Ongoing / Completed)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(6.dp),
+                    .padding(5.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Score Badge
-                anime.averageScore?.let { score ->
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(DarkCanvas.copy(alpha = 0.85f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "★ ${(score / 10f)}",
-                            color = AccentAmber,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                // Format Tag: "TV" / "Movie" / "OVA" / "Donghua"
+                val formatLabel = when {
+                    anime.isDonghua -> "Donghua"
+                    anime.format == "MOVIE" -> "Movie"
+                    anime.format == "TV" || anime.format == "TV_SHORT" -> "TV"
+                    anime.format == "OVA" -> "OVA"
+                    anime.format == "ONA" -> "ONA"
+                    anime.format == "SPECIAL" -> "Special"
+                    else -> anime.format ?: "TV"
                 }
-
-                // Format or Donghua Badge
-                val badgeText = if (anime.isDonghua) "DONGHUA" else (anime.format ?: "TV")
-                val badgeColor = if (anime.isDonghua) AccentCyan else PrimaryViolet
 
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(badgeColor.copy(alpha = 0.9f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(PrimaryViolet.copy(alpha = 0.9f))
+                        .padding(horizontal = 5.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = badgeText,
+                        text = formatLabel,
                         color = Color.White,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
                 }
+
+                // Status Tag: "Ongoing" vs "Completed"
+                val isOngoing = anime.status == "RELEASING"
+                val isUpcoming = anime.status == "NOT_YET_RELEASED"
+                val (statusText, statusBg, statusTextColor) = when {
+                    isOngoing -> Triple("Ongoing", AccentGreen.copy(alpha = 0.9f), Color.White)
+                    isUpcoming -> Triple("Upcoming", AccentAmber.copy(alpha = 0.9f), Color.White)
+                    else -> Triple("Completed", DarkSurface.copy(alpha = 0.85f), TextSecondary)
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(statusBg)
+                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = statusText,
+                        color = statusTextColor,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
-            // Bottom Badges (Episode Count / Sub-Dub)
+            // Bottom Badges Row: Audio Tag ("SUB & DUB" vs "SUB") and Score
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(6.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    .fillMaxWidth()
+                    .padding(5.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                val displayEp = anime.currentEpisode ?: anime.episodes
-                displayEp?.let { epNum ->
+                // Sub & Dub Tag
+                val hasDub = when {
+                    anime.dubCount != null -> anime.dubCount > 0
+                    anime.isDonghua -> false
+                    anime.format == "TV" -> true
+                    else -> true
+                }
+                val audioLabel = if (hasDub) "SUB & DUB" else "SUB"
+                val audioBg = if (hasDub) AccentAmber.copy(alpha = 0.9f) else DarkSurface.copy(alpha = 0.85f)
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(audioBg)
+                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = audioLabel,
+                        color = if (hasDub) Color.Black else TextPrimary,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                // Rating Badge
+                anime.averageScore?.let { score ->
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .background(DarkSurface.copy(alpha = 0.9f))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                            .background(DarkCanvas.copy(alpha = 0.85f))
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "SUB $epNum",
-                            color = TextPrimary,
+                            text = "★ ${(score / 10f)}",
+                            color = AccentAmber,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -135,15 +187,15 @@ fun AnimeCard(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Title
+        // Title at the bottom of the card
         Text(
             text = anime.englishTitle ?: anime.title,
             color = TextPrimary,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            lineHeight = 17.sp
+            lineHeight = 16.sp
         )
     }
 }
