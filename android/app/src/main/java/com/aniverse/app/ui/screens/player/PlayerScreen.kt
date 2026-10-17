@@ -896,7 +896,9 @@ fun PlayerScreen(
                                         return true
                                     }
 
-                                    val isStreamHost = lower.contains("vixsrc") || lower.contains("vsembed") ||
+                                    val isStreamHost = lower.contains("embedwave") || lower.contains("nxsha") ||
+                                                       lower.contains("videasy") || lower.contains("vidfast") ||
+                                                       lower.contains("vixsrc") || lower.contains("vsembed") ||
                                                        lower.contains("anyembed") || lower.contains("vidlink") ||
                                                        lower.contains("multiembed") || lower.contains("vidsrc") ||
                                                        lower.contains("autoembed") || lower.contains("2embed") ||

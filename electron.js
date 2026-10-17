@@ -176,6 +176,10 @@ app.on('web-contents-created', (event, contents) => {
     if (!lower.startsWith('http://localhost') &&
         !lower.includes('myanimelist.net') &&
         !lower.includes('accounts.google.com') &&
+        !lower.includes('embedwave.cc') &&
+        !lower.includes('nxsha.app') &&
+        !lower.includes('videasy') &&
+        !lower.includes('vidfast') &&
         !lower.includes('vixsrc.to') &&
         !lower.includes('vsembed.ru') &&
         !lower.includes('anyembed.xyz') &&
