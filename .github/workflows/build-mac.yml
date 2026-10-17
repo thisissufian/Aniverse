@@ -74,13 +74,14 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
-          npx electron-builder --mac dmg zip --arm64 --x64
+          npx electron-builder --mac dmg zip --arm64 --x64 --publish never
 
       - name: List packaged artifacts
         run: ls -la release/
 
       - name: Upload macOS artifacts to GitHub Release v2.0.0
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload v2.0.0 release/*.dmg release/*.zip --clobber
