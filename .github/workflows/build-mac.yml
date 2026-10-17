@@ -1,0 +1,86 @@
+name: Build macOS Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/build-mac.yml'
+      - 'package.json'
+      - 'electron.js'
+
+jobs:
+  build-macos:
+    name: Package macOS (DMG & ZIP)
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Install server dependencies
+        run: |
+          cd server
+          npm install
+
+      - name: Install client dependencies and build React app
+        run: |
+          cd client
+          npm install
+          npm run build
+
+      - name: Generate native macOS .icns icon
+        run: |
+          if [ -f "build/icon.png" ]; then
+            mkdir -p build/icon.iconset
+            sips -z 16 16     build/icon.png --out build/icon.iconset/icon_16x16.png
+            sips -z 32 32     build/icon.png --out build/icon.iconset/icon_16x16@2x.png
+            sips -z 32 32     build/icon.png --out build/icon.iconset/icon_32x32.png
+            sips -z 64 64     build/icon.png --out build/icon.iconset/icon_32x32@2x.png
+            sips -z 128 128   build/icon.png --out build/icon.iconset/icon_128x128.png
+            sips -z 256 256   build/icon.png --out build/icon.iconset/icon_128x128@2x.png
+            sips -z 256 256   build/icon.png --out build/icon.iconset/icon_256x256.png
+            sips -z 512 512   build/icon.png --out build/icon.iconset/icon_256x256@2x.png
+            sips -z 512 512   build/icon.png --out build/icon.iconset/icon_512x512.png
+            iconutil -c icns build/icon.iconset -o build/icon.icns
+            rm -rf build/icon.iconset
+          fi
+
+      - name: Configure server production environment
+        run: |
+          cat << 'EOF' > server/.env
+          PORT=5000
+          CONSUMET_API_URL=http://localhost:3001
+          ANILIST_API_URL=https://graphql.anilist.co
+          JWT_SECRET=aniverse-dev-secret-key-2024-change-in-production
+          JWT_EXPIRES_IN=7d
+          MAL_REDIRECT_URI=http://localhost:5000/api/mal/callback
+          NODE_ENV=development
+          EOF
+
+      - name: Build macOS binaries (DMG and ZIP for Apple Silicon and Intel)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          npx electron-builder --mac dmg zip --arm64 --x64
+
+      - name: List packaged artifacts
+        run: ls -la release/
+
+      - name: Upload macOS artifacts to GitHub Release v2.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload v2.0.0 release/*.dmg release/*.zip --clobber

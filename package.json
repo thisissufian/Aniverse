@@ -2,13 +2,15 @@
   "name": "aniverse",
   "version": "2.0.0",
   "description": "Personal ad-free anime streaming platform",
+  "author": "thisissufian",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev",
     "install-all": "npm install && cd server && npm install && cd ../client && npm install",
     "build-react": "cd client && npm run build",
-    "dist": "npm run build-react && electron-builder"
+    "dist": "npm run build-react && electron-builder",
+    "dist:mac": "npm run build-react && electron-builder --mac"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
@@ -28,6 +30,19 @@
         "nsis",
         "portable"
       ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.entertainment",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "${productName} ${version}"
     },
     "nsis": {
       "oneClick": false,
